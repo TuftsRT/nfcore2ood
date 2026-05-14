@@ -49,12 +49,17 @@ easier to adapt the deployment for another site.
 downloads a selected nf-core pipeline and revision into a local pipeline
 directory structure that `nf2ood` can consume later.
 
-Source the shared environment file first so the downloader and generator use
-the same site configuration:
+Create your site environment file from the checked-in example, edit it for
+your environment, then source it so the downloader and generator use the
+same site configuration:
 
 ```bash
+cp nf2ood.env.example nf2ood.env
+# edit nf2ood.env for your site
 source ./nf2ood.env
 ```
+
+`nf2ood.env` is gitignored so your site values stay local.
 
 Example:
 
@@ -86,17 +91,19 @@ Important:
 [`download_nfcore_pipeline.sh`](./download_nfcore_pipeline.sh)
 contains Tufts-specific paths and module names such as
 `/cluster/tufts/apps/container/biocontainers/nf-core`. Other centers should
-update the downloader variables in
-[`nf2ood.env`](./nf2ood.env) for
-their own environment before downloading pipelines.
+update the downloader variables in their local `nf2ood.env` (copied from
+[`nf2ood.env.example`](./nf2ood.env.example)) for their own environment
+before downloading pipelines.
 
 ## Configuration for Step 2
 
-Use the checked-in environment file
-[`nf2ood.env`](./nf2ood.env) as the
-single place to define site values:
+Use your local environment file (copied from
+[`nf2ood.env.example`](./nf2ood.env.example)) as the single place to define
+site values:
 
 ```bash
+cp nf2ood.env.example nf2ood.env  # one time
+# edit nf2ood.env for your site
 source ./nf2ood.env
 ./nf2ood --input /path/to/pipelines --output /path/to/generated-apps
 ```
@@ -121,19 +128,20 @@ Downloader defaults are derived from those settings:
 
 ## Institutional profile
 
-`nf2ood` is currently configured around the Tufts institutional nf-core
-profile, `-profile tufts`, published in
-[`nf-core/configs`](https://nf-co.re/configs/tufts/). That profile is the
-site-specific execution profile used for Tufts HPC deployments and is
+[`nf2ood.env.example`](./nf2ood.env.example) is shipped with Tufts values
+to illustrate a working configuration. The Tufts institutional nf-core
+profile, `-profile tufts`, is published in
+[`nf-core/configs`](https://nf-co.re/configs/tufts/) and is the
+site-specific execution profile used for Tufts HPC deployments. It is
 referenced by `NF2OOD_SLURM_PROFILE="tufts"` in
-[`nf2ood.env`](./nf2ood.env).
+[`nf2ood.env.example`](./nf2ood.env.example).
 
 Other centers should not reuse the Tufts profile as-is. The recommended
 approach is to create and maintain your own institutional profile in
 `nf-core/configs`, then set `NF2OOD_SLURM_PROFILE` to that profile name in
-[`nf2ood.env`](./nf2ood.env). That
-keeps scheduler settings, partitions, modules, storage paths, and local site
-policies aligned with your own HPC environment.
+your local `nf2ood.env`. That keeps scheduler settings, partitions,
+modules, storage paths, and local site policies aligned with your own HPC
+environment.
 
 Important runtime note:
 
@@ -144,7 +152,7 @@ if the same path is visible from the Open OnDemand host and compute nodes.
 
 ## Step 2: Generate Open OnDemand apps
 
-Source the shared environment file first:
+Source your local environment file first:
 
 ```bash
 source ./nf2ood.env
