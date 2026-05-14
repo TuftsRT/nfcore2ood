@@ -54,6 +54,29 @@ config_value() {
   printf '%s\n' "${!variable_name:-$default_value}"
 }
 
+require_env() {
+  # Require a non-empty environment variable. Echo its value or die with a
+  # message pointing at nf2ood.env.example.
+  local variable_name=$1
+  if [[ -z "${!variable_name:-}" ]]; then
+    die "Required environment variable ${variable_name} is not set. Did you run 'source ./nf2ood.env'? See nf2ood.env.example."
+  fi
+  printf '%s\n' "${!variable_name}"
+}
+
+validate_environment() {
+  # Validate site-required environment variables once, up front, before any
+  # apps are generated. Variables with safe cross-site defaults are left for
+  # config_value() in customize_generated_app.
+  require_env NF2OOD_PIPELINE_ROOT >/dev/null
+  require_env NF2OOD_SINGULARITY_CACHEDIR >/dev/null
+  require_env NF2OOD_PARTITION_YML >/dev/null
+
+  if [[ -z "${NF2OOD_SLURM_PROFILE:-}" ]]; then
+    log "WARNING: NF2OOD_SLURM_PROFILE is not set. Falling back to 'default'. Generated apps will not use a site-specific Nextflow profile."
+  fi
+}
+
 require_command() {
   command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
 }
@@ -260,14 +283,19 @@ customize_generated_app() {
   version_path="${pipeline_version}/${pipeline_version//./_}"
   image_url="$(resolve_pipeline_image_url "$image_map_tsv" "$pipeline_name" "$pipeline_version")"
   subcategory="$(determine_subcategory "$pipeline_name")"
+  # Required (validated up front by validate_environment).
+  rendered_pipeline_root="$(require_env NF2OOD_PIPELINE_ROOT)"
+  rendered_singularity_cache="$(require_env NF2OOD_SINGULARITY_CACHEDIR)"
+  rendered_partition_partial="$(require_env NF2OOD_PARTITION_YML)"
+
+  # Soft default; a warning is emitted once in validate_environment when unset.
+  rendered_slurm_profile="${NF2OOD_SLURM_PROFILE:-default}"
+
+  # Soft defaults that are reasonable cross-site values.
   rendered_cluster="$(config_value NF2OOD_CLUSTER "cluster")"
   rendered_default_directory="$(config_value NF2OOD_DEFAULT_DIRECTORY "$HOME")"
-  rendered_partition_partial="$(config_value NF2OOD_PARTITION_YML "/etc/ood/config/apps/dashboard/batch_connect/partials/cpu_partition.yml")"
   rendered_module_name="$(config_value NF2OOD_MODULE_NAME "nextflow")"
   rendered_container_module="$(config_value NF2OOD_CONTAINER_MODULE "singularity")"
-  rendered_pipeline_root="$(config_value NF2OOD_PIPELINE_ROOT "/cluster/tufts/apps/container/biocontainers/nf-core/pipelines")"
-  rendered_singularity_cache="$(config_value NF2OOD_SINGULARITY_CACHEDIR "/cluster/tufts/apps/container/biocontainers/nf-core/singularity-images")"
-  rendered_slurm_profile="$(config_value NF2OOD_SLURM_PROFILE "tufts")"
   rendered_env_file="$(config_value NF2OOD_ENV_FILE "")"
 
   replace_literal_in_file "${app_dir}/submit.yml.erb" "__PIPELINE_NAME__" "$pipeline_name"
@@ -383,6 +411,8 @@ main() {
 
   require_command python3
   require_command perl
+
+  validate_environment
 
   REPO_ROOT="$(repo_root)"
   TEMPLATE_ROOT="${REPO_ROOT}/nfcore_ood_template"
