@@ -30,6 +30,32 @@ https://github.com/user-attachments/assets/bc7234ff-5b9c-42a0-b616-44f5f6d57eaa
 - creates one Open OnDemand app directory per pipeline version
 - writes a per-app `README.md` for deployment review
 
+## Quick start
+
+The recipe below is site-agnostic; values shown in
+[`nf2ood.env.example`](./nf2ood.env.example) are Tufts examples that you
+should edit for your own HPC center.
+
+```bash
+# 1. Create your local site config (gitignored) from the example.
+cp nf2ood.env.example nf2ood.env
+# edit nf2ood.env so the REQUIRED variables point at your site paths
+
+# 2. Load the site config.
+source ./nf2ood.env
+
+# 3. Download an nf-core pipeline into your local pipeline tree.
+./download_nfcore_pipeline.sh --name taxprofiler --revision 1.2.6
+
+# 4. Generate Open OnDemand apps from that tree.
+./nf2ood --input "$NF2OOD_PIPELINE_ROOT" --output /path/to/generated-apps
+```
+
+`nf2ood` validates the required variables up front and dies with a clear
+message if any are missing. See [Configuration reference](#configuration-reference)
+for the full list, and [Institutional profile (Tufts example)](#institutional-profile-tufts-example)
+for the worked Tufts deployment that ships with the repo.
+
 ## Recommended deployment flow
 
 For other centers deploying nf-core workflows on Open OnDemand, the intended
@@ -49,21 +75,12 @@ easier to adapt the deployment for another site.
 downloads a selected nf-core pipeline and revision into a local pipeline
 directory structure that `nf2ood` can consume later.
 
-Create your site environment file from the checked-in example, edit it for
-your environment, then source it so the downloader and generator use the
-same site configuration:
+Make sure your site environment file is in place (see
+[Quick start](#quick-start)) and then source it before running the
+downloader so the downloader and generator share the same site config:
 
 ```bash
-cp nf2ood.env.example nf2ood.env
-# edit nf2ood.env for your site
 source ./nf2ood.env
-```
-
-`nf2ood.env` is gitignored so your site values stay local.
-
-Example:
-
-```bash
 ./download_nfcore_pipeline.sh --name taxprofiler --revision 1.2.6
 ```
 
@@ -88,18 +105,17 @@ a module first.
 
 Important:
 
-[`download_nfcore_pipeline.sh`](./download_nfcore_pipeline.sh)
-contains Tufts-specific paths and module names such as
-`/cluster/tufts/apps/container/biocontainers/nf-core`. Other centers should
-update the downloader variables in their local `nf2ood.env` (copied from
-[`nf2ood.env.example`](./nf2ood.env.example)) for their own environment
-before downloading pipelines.
+The downloader requires `NF2OOD_PIPELINE_ROOT` (or `--install-root`) to be
+set; it does not assume a Tufts-style default. The Tufts-specific paths
+shipped in [`nf2ood.env.example`](./nf2ood.env.example) are illustrative
+and must be edited in your local `nf2ood.env` before downloading pipelines
+at another site.
 
-## Configuration for Step 2
+## Configuration reference
 
-Use your local environment file (copied from
-[`nf2ood.env.example`](./nf2ood.env.example)) as the single place to define
-site values:
+All site configuration lives in your local `nf2ood.env`, copied from
+[`nf2ood.env.example`](./nf2ood.env.example) (which is the version checked
+in). `nf2ood.env` itself is gitignored so site values stay local.
 
 ```bash
 cp nf2ood.env.example nf2ood.env  # one time
@@ -108,25 +124,36 @@ source ./nf2ood.env
 ./nf2ood --input /path/to/pipelines --output /path/to/generated-apps
 ```
 
-Current variables:
+Variables are grouped by how `nf2ood` treats them when they are unset.
 
-- `NF2OOD_ENV_FILE`: path that generated runtime scripts will try to source
-- `NF2OOD_CLUSTER`: Open OnDemand cluster id written into `form.yml.erb`
-- `NF2OOD_DEFAULT_DIRECTORY`: default working directory shown in the app form
-- `NF2OOD_PARTITION_YML`: path to the partition partial used in the form
-- `NF2OOD_MODULE_NAME`: main runtime module, default `nextflow`
-- `NF2OOD_CONTAINER_MODULE`: container runtime module, default `singularity`
+**REQUIRED** — `nf2ood` dies at startup if any of these are unset:
+
 - `NF2OOD_PIPELINE_ROOT`: root directory containing installed nf-core pipelines
 - `NF2OOD_SINGULARITY_CACHEDIR`: Singularity or Apptainer cache path
-- `NF2OOD_SLURM_PROFILE`: Nextflow profile used for scheduler-backed runs
+- `NF2OOD_PARTITION_YML`: path to the partition partial used in the form
+
+**SOFT (warn)** — `nf2ood` falls back to a placeholder and logs a one-shot
+warning:
+
+- `NF2OOD_SLURM_PROFILE`: Nextflow profile used for scheduler-backed runs;
+  fallback is `default`, which is not site-specific.
+
+**SOFT** — `nf2ood` silently uses a safe cross-site default when unset:
+
+- `NF2OOD_CLUSTER` (default `cluster`): Open OnDemand cluster id written into `form.yml.erb`
+- `NF2OOD_DEFAULT_DIRECTORY` (default `$HOME`): default working directory shown in the app form
+- `NF2OOD_MODULE_NAME` (default `nextflow`): main runtime module
+- `NF2OOD_CONTAINER_MODULE` (default `singularity`): container runtime module
+- `NF2OOD_ENV_FILE` (default empty): path that generated runtime scripts will try to source
 
 Downloader defaults are derived from those settings:
 
 - install root defaults to the parent directory of `NF2OOD_PIPELINE_ROOT`
+  (the downloader also accepts `--install-root` to override)
 - configs dir defaults to `<install-root>/configs`
 - container engine defaults to `NF2OOD_CONTAINER_MODULE`
 
-## Institutional profile
+## Institutional profile (Tufts example)
 
 [`nf2ood.env.example`](./nf2ood.env.example) is shipped with Tufts values
 to illustrate a working configuration. The Tufts institutional nf-core
@@ -137,11 +164,18 @@ referenced by `NF2OOD_SLURM_PROFILE="tufts"` in
 [`nf2ood.env.example`](./nf2ood.env.example).
 
 Other centers should not reuse the Tufts profile as-is. The recommended
-approach is to create and maintain your own institutional profile in
-`nf-core/configs`, then set `NF2OOD_SLURM_PROFILE` to that profile name in
-your local `nf2ood.env`. That keeps scheduler settings, partitions,
-modules, storage paths, and local site policies aligned with your own HPC
-environment.
+approach is:
+
+1. Create and maintain your own institutional profile in
+   [`nf-core/configs`](https://nf-co.re/configs/).
+2. Set `NF2OOD_SLURM_PROFILE` to that profile name in your local
+   `nf2ood.env`.
+
+That keeps scheduler settings, partitions, modules, storage paths, and
+local site policies aligned with your own HPC environment. If you leave
+`NF2OOD_SLURM_PROFILE` unset, `nf2ood` warns at startup and the generated
+apps will use a placeholder profile name, which will not match any real
+profile.
 
 Important runtime note:
 
@@ -161,8 +195,10 @@ source ./nf2ood.env
 
 Optional flags:
 
-- `--image-map /path/to/pipeline2image.tsv`: override the default pipeline image map
-- `--force`: remove the output directory before regeneration
+- `-m, --image-map /path/to/pipeline2image.tsv`: override the default pipeline image map
+- `-s, --subcategory-map /path/to/pipeline2subcategory.tsv`: override the default
+  pipeline-to-subcategory map
+- `-f, --force`: remove the output directory before regeneration
 
 Help:
 
@@ -233,6 +269,27 @@ when it exists. That file maps pipeline names to header image URLs.
 If the TSV file exists but a pipeline is not listed, no image is rendered for
 that app. If the TSV file does not exist, `nf2ood` falls back to a best-effort
 GitHub raw image URL pattern.
+
+## Subcategory mapping
+
+By default, `nf2ood` uses
+[`pipeline2subcategory.tsv`](./pipeline2subcategory.tsv) when it exists. That
+file maps pipeline names to Open OnDemand subcategories (`rnaseq`, `genomics`,
+`singlecell`, etc.) used in each generated `manifest.yml`.
+
+Format is the same as the image map:
+
+```text
+<pipeline_name>\t<subcategory>
+```
+
+If a pipeline is not listed, the subcategory falls back to:
+
+- the pipeline slug (everything after the `nf-core-` prefix), for
+  `nf-core-*` pipelines
+- `bioinformatics`, for anything else
+
+Override the default path with `-s, --subcategory-map`.
 
 ## Portability notes
 
