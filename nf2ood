@@ -382,17 +382,34 @@ generate_app() {
   # dir is removed first so cp -R produces a clean copy rather than nesting
   # the template inside it.
   [[ -d "$app_dir" ]] && rm -rf "$app_dir"
-  cp -R "$TEMPLATE_ROOT" "$app_dir"
+  # Explicit `if !` rather than relying on set -e. When generate_app is
+  # called inside `if generate_app ...; then` (which it is, in the main
+  # loop), bash silently disables set -e for the entire function body, so
+  # any unchecked failure here would be ignored and the app would be
+  # counted as successfully generated.
+  if ! cp -R "$TEMPLATE_ROOT" "$app_dir"; then
+    log "WARNING: failed to copy template for ${pipeline_name} ${pipeline_version}; skipping."
+    return 1
+  fi
 
-  python3 "$REPO_ROOT/json2ood.py" \
-    "$schema_path" \
-    "$generated_form" \
-    "$base_form" \
-    "$params_template" \
-    "$base_params"
+  if ! python3 "$REPO_ROOT/json2ood.py" \
+       "$schema_path" \
+       "$generated_form" \
+       "$base_form" \
+       "$params_template" \
+       "$base_params"; then
+    log "WARNING: json2ood.py failed for ${pipeline_name} ${pipeline_version}; skipping."
+    rm -rf "$app_dir"
+    return 1
+  fi
 
   rm -f "$base_form" "$base_params"
-  customize_generated_app "$app_dir" "$pipeline_name" "$pipeline_version" "$image_map_tsv"
+
+  if ! customize_generated_app "$app_dir" "$pipeline_name" "$pipeline_version" "$image_map_tsv"; then
+    log "WARNING: customize step failed for ${pipeline_name} ${pipeline_version}; skipping."
+    rm -rf "$app_dir"
+    return 1
+  fi
 }
 
 parse_args() {

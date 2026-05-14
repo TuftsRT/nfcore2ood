@@ -10,7 +10,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 
 
 SKIPPED_DEFINITION_NAMES = {
@@ -44,7 +44,9 @@ TRAILING_FORM_FIELDS = ["resume"]
 
 
 # Values that can appear in a JSON Schema ``default`` or ``enum``.
-SchemaValue = str | int | float | bool | None
+# Defined with typing.Union (not "X | Y") so the module loads on
+# Python 3.8/3.9, which are still common on HPC login/compute nodes.
+SchemaValue = Union[str, int, float, bool, None]
 
 
 @dataclass(frozen=True)
