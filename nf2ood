@@ -20,7 +20,7 @@ die() {
 usage() {
   cat <<'EOF'
 Usage: nf2ood --input INPUT_DIR --output OUTPUT_DIR [--image-map TSV]
-              [--subcategory-map TSV] [--force]
+              [--subcategory-map TSV] [--force] [--dry-run]
 
 Generate Open OnDemand apps from nf-core pipeline downloads.
 
@@ -36,6 +36,7 @@ Optional arguments:
                          Format: <pipeline_name>\t<subcategory>
                          Default: ./pipeline2subcategory.tsv when present
   -f, --force            Delete the existing output directory before generating apps
+  -n, --dry-run          Print what would be generated without writing any files
   -h, --help             Show this help message
 
 The input directory is expected to contain one directory per pipeline, with one
@@ -347,6 +348,13 @@ generate_app() {
     return 1
   fi
 
+  if [[ "${DRY_RUN:-false}" == "true" ]]; then
+    log "[DRY-RUN] Would generate ${pipeline_name} ${pipeline_version}"
+    log "[DRY-RUN]   schema: ${schema_path}"
+    log "[DRY-RUN]   app:    ${app_dir}"
+    return 0
+  fi
+
   base_form="${app_dir}/form.template.erb"
   generated_form="${app_dir}/form.yml.erb"
   params_template="${app_dir}/template/nf-params.json.erb"
@@ -370,6 +378,7 @@ parse_args() {
   IMAGE_MAP_TSV=""
   SUBCATEGORY_MAP_TSV=""
   FORCE_OVERWRITE="false"
+  DRY_RUN="false"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -395,6 +404,10 @@ parse_args() {
         ;;
       -f|--force)
         FORCE_OVERWRITE="true"
+        shift
+        ;;
+      -n|--dry-run)
+        DRY_RUN="true"
         shift
         ;;
       -h|--help)
@@ -432,7 +445,12 @@ main() {
   export SUBCATEGORY_MAP_TSV
 
   [[ -d "$TEMPLATE_ROOT" ]] || die "Template directory not found: $TEMPLATE_ROOT"
-  prepare_output_dir "$OUTPUT_DIR" "$FORCE_OVERWRITE"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "Dry run: no files will be created. Output directory ${OUTPUT_DIR} will not be modified."
+  else
+    prepare_output_dir "$OUTPUT_DIR" "$FORCE_OVERWRITE"
+  fi
 
   # Result accumulators; printed by print_summary at the end.
   GENERATED_APPS=()
@@ -471,9 +489,13 @@ main() {
 }
 
 print_summary() {
+  local generated_label="Generated:"
+  if [[ "${DRY_RUN:-false}" == "true" ]]; then
+    generated_label="Would generate:"
+  fi
   log "----------------------------------------"
   log "Generation summary:"
-  log "  Generated:                ${#GENERATED_APPS[@]}"
+  log "  ${generated_label}                ${#GENERATED_APPS[@]}"
   log "  Failed/skipped:           ${#FAILED_APPS[@]}"
   log "  Non-version dirs ignored: ${#SKIPPED_VERSIONS[@]}"
 
