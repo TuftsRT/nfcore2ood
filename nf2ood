@@ -378,7 +378,7 @@ generate_app() {
   local image_map_tsv=$3
   local pipeline_name=$4
   local pipeline_version=$5
-  local schema_path app_dir rendered_version base_form generated_form params_template
+  local schema_path app_dir rendered_version base_form base_params generated_form params_template
 
   rendered_version="${pipeline_version//./-}"
   app_dir="${output_dir}/${pipeline_name}-${rendered_version}"
@@ -396,6 +396,7 @@ generate_app() {
   fi
 
   base_form="${app_dir}/form.template.erb"
+  base_params="${app_dir}/nf-params.template.erb"
   generated_form="${app_dir}/form.yml.erb"
   params_template="${app_dir}/template/nf-params.json.erb"
 
@@ -410,9 +411,10 @@ generate_app() {
     "$schema_path" \
     "$generated_form" \
     "$base_form" \
-    "$params_template"
+    "$params_template" \
+    "$base_params"
 
-  rm -f "$base_form"
+  rm -f "$base_form" "$base_params"
   customize_generated_app "$app_dir" "$pipeline_name" "$pipeline_version" "$image_map_tsv"
 }
 

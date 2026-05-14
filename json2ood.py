@@ -76,6 +76,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("output_form_yml", help="Rendered OOD form YAML output path")
     parser.add_argument("base_form_yml", help="Base OOD form template path")
     parser.add_argument("output_params_json", help="Rendered OOD params ERB template path")
+    parser.add_argument(
+        "base_params_erb",
+        help="Base ERB template for nf-params.json.erb (contains __NF_PARAMS_ENTRIES__ placeholder)",
+    )
     return parser.parse_args()
 
 
@@ -325,58 +329,44 @@ def render_params_entry(field_spec: FieldSpec) -> str:
     return f'    "{field_spec.original_name}": {value_expression}'
 
 
-def render_params(groups: list[GroupSpec]) -> str:
+NF_PARAMS_ENTRIES_PLACEHOLDER = "__NF_PARAMS_ENTRIES__"
+
+
+def render_params(groups: list[GroupSpec], base_params_content: str) -> str:
+    """Substitute the rendered param entries into the base ERB template.
+
+    The base template (nf-params.template.erb) carries the Ruby helpers
+    (to_bool / to_number) and the surrounding params hash boilerplate; this
+    function just splices the per-field entries into the
+    ``__NF_PARAMS_ENTRIES__`` placeholder.
+    """
+    if NF_PARAMS_ENTRIES_PLACEHOLDER not in base_params_content:
+        raise ValueError(
+            f"Base params template is missing the {NF_PARAMS_ENTRIES_PLACEHOLDER} placeholder."
+        )
+
     entries = [
         render_params_entry(field_spec)
         for group in groups
         for field_spec in group.fields
     ]
-
-    return """<%
-require "json"
-
-to_bool = lambda do |value|
-  case value
-  when true, false
-    value
-  when String
-    normalized = value.strip.downcase
-    next true if %w[true 1 yes y on].include?(normalized)
-    next false if %w[false 0 no n off].include?(normalized)
-    value
-  else
-    value
-  end
-end
-
-to_number = lambda do |value|
-  case value
-  when Integer, Float
-    value
-  when String
-    stripped = value.strip
-    next value if stripped.empty?
-    next stripped.to_i if stripped.match?(/\\A[+-]?\\d+\\z/)
-    next stripped.to_f if stripped.match?(/\\A[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?\\z/)
-    value
-  else
-    value
-  end
-end
-
-params = {
-""" + ",\n".join(entries) + """
-}
-
-params.reject! { |_k, v| v.is_a?(String) && v.strip.empty? }
-%><%= JSON.pretty_generate(params) %>
-"""
+    return base_params_content.replace(
+        NF_PARAMS_ENTRIES_PLACEHOLDER, ",\n".join(entries)
+    )
 
 
-def generate_outputs(schema: dict[str, Any], base_form_path: Path) -> tuple[str, str]:
+def generate_outputs(
+    schema: dict[str, Any],
+    base_form_path: Path,
+    base_params_path: Path,
+) -> tuple[str, str]:
     groups = normalize_schema(schema)
     base_form_content = base_form_path.read_text(encoding="utf-8")
-    return render_form(groups, base_form_content), render_params(groups)
+    base_params_content = base_params_path.read_text(encoding="utf-8")
+    return (
+        render_form(groups, base_form_content),
+        render_params(groups, base_params_content),
+    )
 
 
 def main() -> int:
@@ -385,8 +375,9 @@ def main() -> int:
     output_form_path = Path(args.output_form_yml)
     base_form_path = Path(args.base_form_yml)
     output_params_path = Path(args.output_params_json)
+    base_params_path = Path(args.base_params_erb)
 
-    for path in (schema_path, base_form_path):
+    for path in (schema_path, base_form_path, base_params_path):
         if not path.exists():
             raise FileNotFoundError(f"Required file not found: {path}")
 
@@ -394,7 +385,9 @@ def main() -> int:
     output_params_path.parent.mkdir(parents=True, exist_ok=True)
 
     schema = read_json(schema_path)
-    form_content, params_content = generate_outputs(schema, base_form_path)
+    form_content, params_content = generate_outputs(
+        schema, base_form_path, base_params_path
+    )
     output_form_path.write_text(form_content, encoding="utf-8")
     output_params_path.write_text(params_content, encoding="utf-8")
     return 0
