@@ -10,7 +10,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 
 
 SKIPPED_DEFINITION_NAMES = {
@@ -40,7 +40,13 @@ STATIC_FORM_FIELDS = [
     "num_memory",
     "workdir",
 ]
-TRAILING_FORM_FIELDS = ["tower_access_token", "resume"]
+TRAILING_FORM_FIELDS = ["resume"]
+
+
+# Values that can appear in a JSON Schema ``default`` or ``enum``.
+# Defined with typing.Union (not "X | Y") so the module loads on
+# Python 3.8/3.9, which are still common on HPC login/compute nodes.
+SchemaValue = Union[str, int, float, bool, None]
 
 
 @dataclass(frozen=True)
@@ -53,8 +59,8 @@ class FieldSpec:
     help_text: str
     widget_type: str | None
     required: bool
-    default_value: Any = None
-    enum_values: tuple[Any, ...] = ()
+    default_value: SchemaValue = None
+    enum_values: tuple[SchemaValue, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -76,6 +82,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("output_form_yml", help="Rendered OOD form YAML output path")
     parser.add_argument("base_form_yml", help="Base OOD form template path")
     parser.add_argument("output_params_json", help="Rendered OOD params ERB template path")
+    parser.add_argument(
+        "base_params_erb",
+        help="Base ERB template for nf-params.json.erb (contains __NF_PARAMS_ENTRIES__ placeholder)",
+    )
     return parser.parse_args()
 
 
@@ -263,12 +273,18 @@ def render_field(field_spec: FieldSpec) -> list[str]:
         lines.append("    required: true")
 
     if field_spec.widget_type == "check_box":
+        # Render booleans as a two-option select so the OOD form picks up
+        # data-hide-...-when-un-checked rules consistently. The default option
+        # is listed first so OOD treats it as the initial selection.
         lines.append("    widget: select")
-        default_option = "true" if field_spec.default_value is True else "false"
-        alternate_option = "false" if default_option == "true" else "true"
-        lines.extend(render_select_options(default_option, (default_option, alternate_option)))
+        is_default_true = field_spec.default_value is True
+        default_str = "true" if is_default_true else "false"
+        other_str = "false" if is_default_true else "true"
+        lines.append("    options:")
+        lines.append(f"      - ['{default_str}', '{default_str}']")
+        lines.append(f"      - ['{other_str}', '{other_str}']")
         if isinstance(field_spec.default_value, bool):
-            lines.append(f"    value: {'true' if field_spec.default_value else 'false'}")
+            lines.append(f"    value: {default_str}")
     elif field_spec.widget_type == "text_field":
         lines.append("    widget: text_field")
         if field_spec.default_value not in (None, ""):
@@ -282,7 +298,14 @@ def render_field(field_spec: FieldSpec) -> list[str]:
         lines.append('      - "<%= ENV.fetch(\'HOME\', \'/\') %>"')
     elif field_spec.widget_type == "number_field":
         lines.append("    widget: number_field")
-        if isinstance(field_spec.default_value, (int, float)):
+        # bool is a subclass of int in Python, so an explicit bool check is
+        # needed to keep "value: True" / "value: False" from leaking into the
+        # YAML when a schema (unusually) types a flag as a number with a
+        # boolean default.
+        if (
+            isinstance(field_spec.default_value, (int, float))
+            and not isinstance(field_spec.default_value, bool)
+        ):
             lines.append(f"    value: {field_spec.default_value}")
         lines.append("    step: 1")
     elif field_spec.widget_type == "select":
@@ -325,58 +348,44 @@ def render_params_entry(field_spec: FieldSpec) -> str:
     return f'    "{field_spec.original_name}": {value_expression}'
 
 
-def render_params(groups: list[GroupSpec]) -> str:
+NF_PARAMS_ENTRIES_PLACEHOLDER = "__NF_PARAMS_ENTRIES__"
+
+
+def render_params(groups: list[GroupSpec], base_params_content: str) -> str:
+    """Substitute the rendered param entries into the base ERB template.
+
+    The base template (nf-params.template.erb) carries the Ruby helpers
+    (to_bool / to_number) and the surrounding params hash boilerplate; this
+    function just splices the per-field entries into the
+    ``__NF_PARAMS_ENTRIES__`` placeholder.
+    """
+    if NF_PARAMS_ENTRIES_PLACEHOLDER not in base_params_content:
+        raise ValueError(
+            f"Base params template is missing the {NF_PARAMS_ENTRIES_PLACEHOLDER} placeholder."
+        )
+
     entries = [
         render_params_entry(field_spec)
         for group in groups
         for field_spec in group.fields
     ]
-
-    return """<%
-require "json"
-
-to_bool = lambda do |value|
-  case value
-  when true, false
-    value
-  when String
-    normalized = value.strip.downcase
-    next true if %w[true 1 yes y on].include?(normalized)
-    next false if %w[false 0 no n off].include?(normalized)
-    value
-  else
-    value
-  end
-end
-
-to_number = lambda do |value|
-  case value
-  when Integer, Float
-    value
-  when String
-    stripped = value.strip
-    next value if stripped.empty?
-    next stripped.to_i if stripped.match?(/\\A[+-]?\\d+\\z/)
-    next stripped.to_f if stripped.match?(/\\A[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?\\z/)
-    value
-  else
-    value
-  end
-end
-
-params = {
-""" + ",\n".join(entries) + """
-}
-
-params.reject! { |_k, v| v.is_a?(String) && v.strip.empty? }
-%><%= JSON.pretty_generate(params) %>
-"""
+    return base_params_content.replace(
+        NF_PARAMS_ENTRIES_PLACEHOLDER, ",\n".join(entries)
+    )
 
 
-def generate_outputs(schema: dict[str, Any], base_form_path: Path) -> tuple[str, str]:
+def generate_outputs(
+    schema: dict[str, Any],
+    base_form_path: Path,
+    base_params_path: Path,
+) -> tuple[str, str]:
     groups = normalize_schema(schema)
     base_form_content = base_form_path.read_text(encoding="utf-8")
-    return render_form(groups, base_form_content), render_params(groups)
+    base_params_content = base_params_path.read_text(encoding="utf-8")
+    return (
+        render_form(groups, base_form_content),
+        render_params(groups, base_params_content),
+    )
 
 
 def main() -> int:
@@ -385,8 +394,9 @@ def main() -> int:
     output_form_path = Path(args.output_form_yml)
     base_form_path = Path(args.base_form_yml)
     output_params_path = Path(args.output_params_json)
+    base_params_path = Path(args.base_params_erb)
 
-    for path in (schema_path, base_form_path):
+    for path in (schema_path, base_form_path, base_params_path):
         if not path.exists():
             raise FileNotFoundError(f"Required file not found: {path}")
 
@@ -394,7 +404,9 @@ def main() -> int:
     output_params_path.parent.mkdir(parents=True, exist_ok=True)
 
     schema = read_json(schema_path)
-    form_content, params_content = generate_outputs(schema, base_form_path)
+    form_content, params_content = generate_outputs(
+        schema, base_form_path, base_params_path
+    )
     output_form_path.write_text(form_content, encoding="utf-8")
     output_params_path.write_text(params_content, encoding="utf-8")
     return 0

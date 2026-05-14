@@ -43,8 +43,6 @@ function resetBatchConnectFormOnce() {
   window.requestAnimationFrame(() => setTimeout(clearFields, 50));
 }
 
-document.addEventListener("DOMContentLoaded", resetBatchConnectFormOnce);
-
 const ICONS = {
   clock: "fa fa-fw me-2 fas fa-clock",
   folder: "fa fa-fw me-2 fas fa-folder-open",
@@ -145,7 +143,6 @@ const iconMap = {
   "simpleaf options": ICONS.microscope,
   "shiny app settings": ICONS.app,
   "reproducibility options": ICONS.lock,
-  "tower_access_token (optional)": ICONS.key,
 };
 
 const prefixIconMap = {
@@ -356,7 +353,7 @@ function isFirstLevelControllerLabel(label) {
 
 function isAlwaysIconLabel(labelText) {
   const normalized = normalizeLabel(labelText);
-  return /\b(cores?|cpus?|memory|ram|hours?|time|walltime|resume|tower_access_token|tower access token|workdir|working directory)\b/.test(
+  return /\b(cores?|cpus?|memory|ram|hours?|time|walltime|resume|workdir|working directory)\b/.test(
     normalized
   );
 }
@@ -449,51 +446,6 @@ function styleSavedFormNotice() {
     link.style.textDecoration = "none";
     link.style.fontWeight = "700";
   });
-}
-
-function resetBatchConnectFormOnce() {
-  const url = new URL(window.location.href);
-  const needsReset =
-    url.searchParams.get("cache_reset") === "1" ||
-    url.searchParams.has("cache_reset_reload");
-  if (!needsReset) return;
-
-  const clearFields = () => {
-    document.querySelectorAll("input, textarea, select").forEach((field) => {
-      const type = (field.getAttribute("type") || "").toLowerCase();
-      if (["hidden", "submit", "button", "image", "file"].includes(type))
-        return;
-      if (field.disabled) return;
-
-      if (field.tagName === "SELECT") {
-        field.selectedIndex = 0;
-        field.dispatchEvent(new Event("change", { bubbles: true }));
-        return;
-      }
-
-      if (type === "checkbox" || type === "radio") {
-        field.checked = false;
-        field.dispatchEvent(new Event("change", { bubbles: true }));
-        return;
-      }
-
-      field.value = "";
-      field.dispatchEvent(new Event("input", { bubbles: true }));
-      field.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-
-    url.searchParams.delete("cache_reset");
-    url.searchParams.delete("cache_reset_at");
-    if (url.searchParams.has("cache_reset_reload")) {
-      url.searchParams.delete("cache_reset_reload");
-      window.history.replaceState({}, document.title, url.toString());
-    } else {
-      url.searchParams.set("cache_reset_reload", Date.now().toString());
-      window.location.replace(url.toString());
-    }
-  };
-
-  window.requestAnimationFrame(() => setTimeout(clearFields, 50));
 }
 
 document.addEventListener("DOMContentLoaded", () => {

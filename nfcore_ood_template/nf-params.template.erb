@@ -1,0 +1,38 @@
+<%
+require "json"
+
+to_bool = lambda do |value|
+  case value
+  when true, false
+    value
+  when String
+    normalized = value.strip.downcase
+    next true if %w[true 1 yes y on].include?(normalized)
+    next false if %w[false 0 no n off].include?(normalized)
+    value
+  else
+    value
+  end
+end
+
+to_number = lambda do |value|
+  case value
+  when Integer, Float
+    value
+  when String
+    stripped = value.strip
+    next value if stripped.empty?
+    next stripped.to_i if stripped.match?(/\A[+-]?\d+\z/)
+    next stripped.to_f if stripped.match?(/\A[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\z/)
+    value
+  else
+    value
+  end
+end
+
+params = {
+__NF_PARAMS_ENTRIES__
+}
+
+params.reject! { |_k, v| v.is_a?(String) && v.strip.empty? }
+%><%= JSON.pretty_generate(params) %>

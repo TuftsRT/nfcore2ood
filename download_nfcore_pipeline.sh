@@ -12,11 +12,8 @@ fi
 
 pipeline_name=""
 revision=""
-install_root="$(dirname "${NF2OOD_PIPELINE_ROOT:-/cluster/tufts/apps/container/biocontainers/nf-core/pipelines}")"
-# Configs are maintained centrally under <install_root>/configs.
-# Each downloaded pipeline replaces its local configs directory with a symlink
-# to that shared copy so site updates only need to happen in one place.
-configs_dir="${install_root}/configs"
+install_root=""
+configs_dir=""
 container_engine="${NF2OOD_CONTAINER_MODULE:-singularity}"
 engine_module="${NFCORE_ENGINE_MODULE:-}"
 nfcore_module="${NFCORE_MODULE_NAME:-nf-core}"
@@ -85,6 +82,25 @@ if [[ -z "${pipeline_name}" || -z "${revision}" ]]; then
   echo "Both --name and --revision are required." >&2
   usage
   exit 1
+fi
+
+# install_root defaults to the parent of NF2OOD_PIPELINE_ROOT when not set
+# via --install-root. NF2OOD_PIPELINE_ROOT is required (no Tufts-flavored
+# fallback) so misconfigured sites fail fast with a clear message.
+if [[ -z "${install_root}" ]]; then
+  if [[ -z "${NF2OOD_PIPELINE_ROOT:-}" ]]; then
+    echo "Error: NF2OOD_PIPELINE_ROOT is not set and --install-root was not given." >&2
+    echo "       Run 'source ./nf2ood.env' (after 'cp nf2ood.env.example nf2ood.env')." >&2
+    exit 1
+  fi
+  install_root="$(dirname "${NF2OOD_PIPELINE_ROOT}")"
+fi
+
+# Configs are maintained centrally under <install_root>/configs.
+# Each downloaded pipeline replaces its local configs directory with a symlink
+# to that shared copy so site updates only need to happen in one place.
+if [[ -z "${configs_dir}" ]]; then
+  configs_dir="${install_root}/configs"
 fi
 
 if command -v module >/dev/null 2>&1; then
