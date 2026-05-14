@@ -1,8 +1,16 @@
 # nf2ood
 
+**Version: 1.1.0**
+
 `nf2ood` generates Open OnDemand batch-connect apps from locally downloaded
 nf-core pipelines. The repository includes both the download step and the
 pipeline-to-Open-OnDemand app generation step.
+
+Print the installed version at any time with:
+
+```bash
+./nf2ood -V
+```
 
 <img src="docs/icon.png" alt="nf2ood icon" width="30%">
 

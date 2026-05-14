@@ -7,6 +7,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 readonly SCRIPT_NAME="$(basename "$0")"
+readonly NF2OOD_VERSION="1.1.0"
 
 log() {
   printf '[%s] %s\n' "$SCRIPT_NAME" "$*"
@@ -17,7 +18,13 @@ die() {
   exit 1
 }
 
+print_version() {
+  printf 'nf2ood %s\n' "$NF2OOD_VERSION"
+}
+
 usage() {
+  print_version
+  printf '\n'
   cat <<'EOF'
 Usage: nf2ood --output OUTPUT_DIR [--input INPUT_DIR] [--image-map TSV]
               [--subcategory-map TSV] [--pipeline NAME] [--version VER]
@@ -48,6 +55,9 @@ Optional arguments:
                          apps. Ignored when --pipeline or --version is given so
                          unrelated apps in the output directory are preserved.
   -n, --dry-run          Print what would be generated without writing any files
+  -V                     Print the nf2ood tool version and exit (use this
+                         instead of --version, which is the pipeline-version
+                         filter above)
   -h, --help             Show this help message
 
 The input directory is expected to contain one directory per pipeline, with one
@@ -462,6 +472,10 @@ parse_args() {
         DRY_RUN="true"
         shift
         ;;
+      -V)
+        print_version
+        exit 0
+        ;;
       -h|--help)
         usage
         exit 0
@@ -481,6 +495,8 @@ main() {
   parse_args "$@"
 
   require_command python3
+
+  log "nf2ood ${NF2OOD_VERSION}"
 
   validate_environment
 
