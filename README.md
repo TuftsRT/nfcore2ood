@@ -48,7 +48,9 @@ source ./nf2ood.env
 ./download_nfcore_pipeline.sh --name taxprofiler --revision 1.2.6
 
 # 4. Generate Open OnDemand apps from that tree.
-./nf2ood --input "$NF2OOD_PIPELINE_ROOT" --output /path/to/generated-apps
+#    --input defaults to $NF2OOD_PIPELINE_ROOT so you can omit it when
+#    you want to process the same tree the downloader installed into.
+./nf2ood --output /path/to/generated-apps
 ```
 
 `nf2ood` validates the required variables up front and dies with a clear
@@ -121,7 +123,8 @@ in). `nf2ood.env` itself is gitignored so site values stay local.
 cp nf2ood.env.example nf2ood.env  # one time
 # edit nf2ood.env for your site
 source ./nf2ood.env
-./nf2ood --input /path/to/pipelines --output /path/to/generated-apps
+./nf2ood --output /path/to/generated-apps
+# equivalent to: ./nf2ood --input "$NF2OOD_PIPELINE_ROOT" --output /path/to/generated-apps
 ```
 
 Variables are grouped by how `nf2ood` treats them when they are unset.
@@ -190,11 +193,17 @@ Source your local environment file first:
 
 ```bash
 source ./nf2ood.env
-./nf2ood --input /path/to/pipelines --output /path/to/generated-apps
+./nf2ood --output /path/to/generated-apps
 ```
+
+`--input` defaults to `$NF2OOD_PIPELINE_ROOT` when omitted, so the
+command above scans the same pipeline tree the downloader installs
+into. Pass `-i/--input PATH` explicitly to scan a different tree.
 
 Optional flags:
 
+- `-i, --input PATH`: directory containing nf-core pipeline directories.
+  Defaults to `$NF2OOD_PIPELINE_ROOT` when unset.
 - `-m, --image-map /path/to/pipeline2image.tsv`: override the default pipeline image map
 - `-s, --subcategory-map /path/to/pipeline2subcategory.tsv`: override the default
   pipeline-to-subcategory map

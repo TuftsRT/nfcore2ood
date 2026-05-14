@@ -19,17 +19,20 @@ die() {
 
 usage() {
   cat <<'EOF'
-Usage: nf2ood --input INPUT_DIR --output OUTPUT_DIR [--image-map TSV]
+Usage: nf2ood --output OUTPUT_DIR [--input INPUT_DIR] [--image-map TSV]
               [--subcategory-map TSV] [--pipeline NAME] [--version VER]
               [--force] [--dry-run]
 
 Generate Open OnDemand apps from nf-core pipeline downloads.
 
 Required arguments:
-  -i, --input            Directory containing nf-core pipeline directories
   -o, --output           Directory where generated Open OnDemand apps will be written
 
 Optional arguments:
+  -i, --input            Directory containing nf-core pipeline directories.
+                         Defaults to ${NF2OOD_PIPELINE_ROOT} when unset, since
+                         that is normally where download_nfcore_pipeline.sh
+                         installs pipelines for this site.
   -m, --image-map        TSV mapping of pipeline name to image URL
                          Format: <pipeline_name>\t<image_url>
                          Default: ./pipeline2image.tsv when present
@@ -444,9 +447,9 @@ parse_args() {
     esac
   done
 
-  [[ -n "$INPUT_DIR" ]] || die "Missing required argument: --input"
   [[ -n "$OUTPUT_DIR" ]] || die "Missing required argument: --output"
-  [[ -d "$INPUT_DIR" ]] || die "Input directory does not exist: $INPUT_DIR"
+  # INPUT_DIR is resolved in main() after validate_environment so it can
+  # default to NF2OOD_PIPELINE_ROOT when not given on the command line.
 }
 
 main() {
@@ -455,6 +458,15 @@ main() {
   require_command python3
 
   validate_environment
+
+  # Default --input to NF2OOD_PIPELINE_ROOT (required env var, validated above)
+  # so the common workflow of "download to NF2OOD_PIPELINE_ROOT, then generate
+  # apps from it" works without repeating the path on the command line.
+  if [[ -z "$INPUT_DIR" ]]; then
+    INPUT_DIR="$NF2OOD_PIPELINE_ROOT"
+    log "Using NF2OOD_PIPELINE_ROOT as --input: ${INPUT_DIR}"
+  fi
+  [[ -d "$INPUT_DIR" ]] || die "Input directory does not exist: $INPUT_DIR"
 
   REPO_ROOT="$(repo_root)"
   TEMPLATE_ROOT="${REPO_ROOT}/nfcore_ood_template"
