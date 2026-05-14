@@ -1,0 +1,174 @@
+# nf-core pipeline name (with nf-core- prefix) -> OOD subcategory.
+# Lines starting with # and blank lines are ignored.
+# Pipelines not listed here fall back to:
+#   - the pipeline slug (everything after nf-core-) if the name has the
+#     nf-core- prefix
+#   - "bioinformatics" otherwise
+#
+# Format: <pipeline_name>\t<subcategory>
+
+# clinical
+nf-core-abotyper	clinical
+nf-core-diseasemodulediscovery	clinical
+nf-core-drugresponseeval	clinical
+nf-core-longraredisease	clinical
+nf-core-meerpipe	clinical
+nf-core-oncoanalyser	clinical
+nf-core-pacsomatic	clinical
+nf-core-raredisease	clinical
+nf-core-tumourevo	clinical
+nf-core-variantprioritization	clinical
+
+# singlecell
+nf-core-drop	singlecell
+nf-core-hadge	singlecell
+nf-core-marsseq	singlecell
+nf-core-mcmicro	singlecell
+nf-core-molkart	singlecell
+nf-core-panoramaseq	singlecell
+nf-core-pixelator	singlecell
+nf-core-scdownstream	singlecell
+nf-core-scflow	singlecell
+nf-core-scnanoseq	singlecell
+nf-core-scrnaseq	singlecell
+nf-core-smartseq2	singlecell
+nf-core-sopa	singlecell
+nf-core-spatialvi	singlecell
+nf-core-spatialxe	singlecell
+
+# rnaseq
+nf-core-alleleexpression	rnaseq
+nf-core-cageseq	rnaseq
+nf-core-circrna	rnaseq
+nf-core-clipseq	rnaseq
+nf-core-denovotranscript	rnaseq
+nf-core-differentialabundance	rnaseq
+nf-core-dualrnaseq	rnaseq
+nf-core-evexplorer	rnaseq
+nf-core-isoseq	rnaseq
+nf-core-lncpipe	rnaseq
+nf-core-nanostring	rnaseq
+nf-core-nascent	rnaseq
+nf-core-ribomsqc	rnaseq
+nf-core-riboseq	rnaseq
+nf-core-rnafusion	rnaseq
+nf-core-rnaseq	rnaseq
+nf-core-rnasplice	rnaseq
+nf-core-rnavar	rnaseq
+nf-core-slamseq	rnaseq
+nf-core-smrnaseq	rnaseq
+nf-core-spinningjenny	rnaseq
+nf-core-tfactivity	rnaseq
+
+# epigenomics
+nf-core-atacseq	epigenomics
+nf-core-callingcards	epigenomics
+nf-core-chipseq	epigenomics
+nf-core-cutandrun	epigenomics
+nf-core-hic	epigenomics
+nf-core-hicar	epigenomics
+nf-core-methylarray	epigenomics
+nf-core-methylong	epigenomics
+nf-core-methylseq	epigenomics
+nf-core-mnaseseq	epigenomics
+nf-core-sammyseq	epigenomics
+nf-core-ssds	epigenomics
+
+# metagenomics
+nf-core-ampliseq	metagenomics
+nf-core-coproid	metagenomics
+nf-core-createtaxdb	metagenomics
+nf-core-detaxizer	metagenomics
+nf-core-eager	metagenomics
+nf-core-funcscan	metagenomics
+nf-core-mag	metagenomics
+nf-core-magmap	metagenomics
+nf-core-metapep	metagenomics
+nf-core-metatdenovo	metagenomics
+nf-core-pathogensurveillance	metagenomics
+nf-core-phageannotator	metagenomics
+nf-core-proteinfamilies	metagenomics
+nf-core-taxprofiler	metagenomics
+nf-core-troughgraph	metagenomics
+nf-core-vipr	metagenomics
+nf-core-viralintegration	metagenomics
+nf-core-viralmetagenome	metagenomics
+nf-core-viralrecon	metagenomics
+
+# proteomics
+nf-core-ddamsproteomics	proteomics
+nf-core-diaproteomics	proteomics
+nf-core-mhcquant	proteomics
+nf-core-proteinannotator	proteomics
+nf-core-proteinfold	proteomics
+nf-core-proteogenomicsdb	proteomics
+nf-core-proteomicslfq	proteomics
+nf-core-quantms	proteomics
+
+# metabolomics
+nf-core-metaboigniter	metabolomics
+
+# imaging
+nf-core-cellpainting	imaging
+nf-core-imcyto	imaging
+nf-core-liverctanalysis	imaging
+nf-core-lsmquant	imaging
+nf-core-rangeland	imaging
+
+# immunology
+nf-core-airrflow	immunology
+nf-core-epitopeprediction	immunology
+nf-core-hlatyping	immunology
+
+# genomics
+nf-core-bacass	genomics
+nf-core-bactmap	genomics
+nf-core-circdna	genomics
+nf-core-createpanelrefs	genomics
+nf-core-crisprseq	genomics
+nf-core-crisprvar	genomics
+nf-core-deepmodeloptim	genomics
+nf-core-deepmutscan	genomics
+nf-core-deepvariant	genomics
+nf-core-denovohybrid	genomics
+nf-core-exoseq	genomics
+nf-core-genomeannotator	genomics
+nf-core-genomeassembler	genomics
+nf-core-genomeqc	genomics
+nf-core-genomeskim	genomics
+nf-core-genomicrelatedness	genomics
+nf-core-gwas	genomics
+nf-core-hgtseq	genomics
+nf-core-mitodetect	genomics
+nf-core-multiplesequencealign	genomics
+nf-core-neutronstar	genomics
+nf-core-omicsgenetraitassociation	genomics
+nf-core-pacvar	genomics
+nf-core-pairgenomealign	genomics
+nf-core-pangenome	genomics
+nf-core-phaseimpute	genomics
+nf-core-phyloplace	genomics
+nf-core-radseq	genomics
+nf-core-rarevariantburden	genomics
+nf-core-references	genomics
+nf-core-reportho	genomics
+nf-core-rnadnavar	genomics
+nf-core-sarek	genomics
+nf-core-seqinspector	genomics
+nf-core-stableexpression	genomics
+nf-core-tbanalyzer	genomics
+nf-core-variantbenchmarking	genomics
+nf-core-variantcatalogue	genomics
+
+# utility
+nf-core-bamtofastq	utility
+nf-core-datasync	utility
+nf-core-demo	utility
+nf-core-demultiplex	utility
+nf-core-fastqrepair	utility
+nf-core-fastquorum	utility
+nf-core-fetchngs	utility
+nf-core-kmermaid	utility
+nf-core-nanoseq	utility
+nf-core-readsimulator	utility
+nf-core-seqsubmit	utility

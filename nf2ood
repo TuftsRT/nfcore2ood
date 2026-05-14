@@ -19,20 +19,24 @@ die() {
 
 usage() {
   cat <<'EOF'
-Usage: nf2ood --input INPUT_DIR --output OUTPUT_DIR [--image-map TSV] [--force]
+Usage: nf2ood --input INPUT_DIR --output OUTPUT_DIR [--image-map TSV]
+              [--subcategory-map TSV] [--force]
 
 Generate Open OnDemand apps from nf-core pipeline downloads.
 
 Required arguments:
-  -i, --input       Directory containing nf-core pipeline directories
-  -o, --output      Directory where generated Open OnDemand apps will be written
+  -i, --input            Directory containing nf-core pipeline directories
+  -o, --output           Directory where generated Open OnDemand apps will be written
 
 Optional arguments:
-  --image-map       TSV mapping of pipeline name to image URL
-                    Format: <pipeline_name>\t<image_url>
-                    Default: ./pipeline2image.tsv when present
-  -f, --force       Delete the existing output directory before generating apps
-  -h, --help        Show this help message
+  -m, --image-map        TSV mapping of pipeline name to image URL
+                         Format: <pipeline_name>\t<image_url>
+                         Default: ./pipeline2image.tsv when present
+  -s, --subcategory-map  TSV mapping of pipeline name to OOD subcategory
+                         Format: <pipeline_name>\t<subcategory>
+                         Default: ./pipeline2subcategory.tsv when present
+  -f, --force            Delete the existing output directory before generating apps
+  -h, --help             Show this help message
 
 The input directory is expected to contain one directory per pipeline, with one
 subdirectory per version. For example:
@@ -154,54 +158,50 @@ resolve_pipeline_image_url() {
     "$pipeline_slug" "$pipeline_version" "$pipeline_slug"
 }
 
+lookup_tsv_value() {
+  # Look up a key in a 2-column TSV. Comments (#) and blank lines are skipped,
+  # as is a header row matching "pipeline" or "pipeline_name". Key match is
+  # case-insensitive. Echoes the value when found and returns 0; returns 1 if
+  # the file is missing, empty, or the key is not present.
+  local tsv_path=$1
+  local lookup_key=$2
+
+  [[ -n "$tsv_path" && -f "$tsv_path" ]] || return 1
+
+  local normalized_lookup
+  normalized_lookup="$(printf '%s' "$lookup_key" | tr '[:upper:]' '[:lower:]')"
+
+  local row_key row_value normalized_key
+  while IFS=$'\t' read -r row_key row_value _; do
+    row_key=${row_key//$'\r'/}
+    row_value=${row_value//$'\r'/}
+
+    [[ -z "${row_key//[[:space:]]/}" ]] && continue
+    [[ "${row_key:0:1}" == "#" ]] && continue
+
+    normalized_key="$(printf '%s' "$row_key" | tr '[:upper:]' '[:lower:]')"
+    [[ "$normalized_key" == "pipeline" || "$normalized_key" == "pipeline_name" ]] && continue
+
+    if [[ "$normalized_key" == "$normalized_lookup" ]]; then
+      printf '%s\n' "$row_value"
+      return 0
+    fi
+  done < "$tsv_path"
+
+  return 1
+}
+
 determine_subcategory() {
   local pipeline_name=$1
+  local subcategory_map_tsv=${SUBCATEGORY_MAP_TSV:-}
+
+  local mapped
+  if mapped="$(lookup_tsv_value "$subcategory_map_tsv" "$pipeline_name")" && [[ -n "$mapped" ]]; then
+    printf '%s\n' "$mapped"
+    return 0
+  fi
 
   case "$pipeline_name" in
-    nf-core-abotyper|nf-core-diseasemodulediscovery|nf-core-drugresponseeval|nf-core-longraredisease|nf-core-meerpipe|\
-    nf-core-oncoanalyser|nf-core-pacsomatic|nf-core-raredisease|nf-core-tumourevo|nf-core-variantprioritization)
-      printf 'clinical\n' ;;
-    nf-core-drop|nf-core-hadge|nf-core-marsseq|nf-core-mcmicro|nf-core-molkart|\
-    nf-core-panoramaseq|nf-core-pixelator|nf-core-scdownstream|nf-core-scflow|nf-core-scnanoseq|\
-    nf-core-scrnaseq|nf-core-smartseq2|nf-core-sopa|nf-core-spatialvi|nf-core-spatialxe)
-      printf 'singlecell\n' ;;
-    nf-core-alleleexpression|nf-core-cageseq|nf-core-circrna|nf-core-clipseq|nf-core-denovotranscript|\
-    nf-core-differentialabundance|nf-core-dualrnaseq|nf-core-evexplorer|nf-core-isoseq|nf-core-lncpipe|\
-    nf-core-nanostring|nf-core-nascent|nf-core-ribomsqc|nf-core-riboseq|nf-core-rnafusion|\
-    nf-core-rnaseq|nf-core-rnasplice|nf-core-rnavar|nf-core-slamseq|nf-core-smrnaseq|\
-    nf-core-spinningjenny|nf-core-tfactivity)
-      printf 'rnaseq\n' ;;
-    nf-core-atacseq|nf-core-callingcards|nf-core-chipseq|nf-core-cutandrun|nf-core-hic|\
-    nf-core-hicar|nf-core-methylarray|nf-core-methylong|nf-core-methylseq|nf-core-mnaseseq|\
-    nf-core-sammyseq|nf-core-ssds)
-      printf 'epigenomics\n' ;;
-    nf-core-ampliseq|nf-core-coproid|nf-core-createtaxdb|nf-core-detaxizer|nf-core-eager|\
-    nf-core-funcscan|nf-core-mag|nf-core-magmap|nf-core-metapep|nf-core-metatdenovo|\
-    nf-core-pathogensurveillance|nf-core-phageannotator|nf-core-proteinfamilies|nf-core-taxprofiler|nf-core-troughgraph|\
-    nf-core-vipr|nf-core-viralintegration|nf-core-viralmetagenome|nf-core-viralrecon)
-      printf 'metagenomics\n' ;;
-    nf-core-ddamsproteomics|nf-core-diaproteomics|nf-core-mhcquant|nf-core-proteinannotator|nf-core-proteinfold|\
-    nf-core-proteogenomicsdb|nf-core-proteomicslfq|nf-core-quantms)
-      printf 'proteomics\n' ;;
-    nf-core-metaboigniter)
-      printf 'metabolomics\n' ;;
-    nf-core-cellpainting|nf-core-imcyto|nf-core-liverctanalysis|nf-core-lsmquant|nf-core-rangeland)
-      printf 'imaging\n' ;;
-    nf-core-airrflow|nf-core-epitopeprediction|nf-core-hlatyping)
-      printf 'immunology\n' ;;
-    nf-core-bacass|nf-core-bactmap|nf-core-circdna|nf-core-createpanelrefs|nf-core-crisprseq|\
-    nf-core-crisprvar|nf-core-deepmodeloptim|nf-core-deepmutscan|nf-core-deepvariant|nf-core-denovohybrid|\
-    nf-core-exoseq|nf-core-genomeannotator|nf-core-genomeassembler|nf-core-genomeqc|nf-core-genomeskim|\
-    nf-core-genomicrelatedness|nf-core-gwas|nf-core-hgtseq|nf-core-mitodetect|nf-core-multiplesequencealign|\
-    nf-core-neutronstar|nf-core-omicsgenetraitassociation|nf-core-pacvar|nf-core-pairgenomealign|nf-core-pangenome|\
-    nf-core-phaseimpute|nf-core-phyloplace|nf-core-radseq|nf-core-rarevariantburden|nf-core-references|\
-    nf-core-reportho|nf-core-rnadnavar|nf-core-sarek|nf-core-seqinspector|nf-core-stableexpression|\
-    nf-core-tbanalyzer|nf-core-variantbenchmarking|nf-core-variantcatalogue)
-      printf 'genomics\n' ;;
-    nf-core-bamtofastq|nf-core-datasync|nf-core-demo|nf-core-demultiplex|nf-core-fastqrepair|\
-    nf-core-fastquorum|nf-core-fetchngs|nf-core-kmermaid|nf-core-nanoseq|nf-core-readsimulator|\
-    nf-core-seqsubmit)
-      printf 'utility\n' ;;
     nf-core-*)
       printf '%s\n' "${pipeline_name#nf-core-}" ;;
     *)
@@ -334,6 +334,7 @@ parse_args() {
   INPUT_DIR=""
   OUTPUT_DIR=""
   IMAGE_MAP_TSV=""
+  SUBCATEGORY_MAP_TSV=""
   FORCE_OVERWRITE="false"
 
   while [[ $# -gt 0 ]]; do
@@ -348,9 +349,14 @@ parse_args() {
         OUTPUT_DIR=$2
         shift 2
         ;;
-      --image-map)
+      -m|--image-map)
         [[ $# -ge 2 ]] || die "Missing value for $1"
         IMAGE_MAP_TSV=$2
+        shift 2
+        ;;
+      -s|--subcategory-map)
+        [[ $# -ge 2 ]] || die "Missing value for $1"
+        SUBCATEGORY_MAP_TSV=$2
         shift 2
         ;;
       -f|--force)
@@ -384,6 +390,10 @@ main() {
   if [[ -z "$IMAGE_MAP_TSV" ]]; then
     IMAGE_MAP_TSV="${REPO_ROOT}/pipeline2image.tsv"
   fi
+  if [[ -z "$SUBCATEGORY_MAP_TSV" ]]; then
+    SUBCATEGORY_MAP_TSV="${REPO_ROOT}/pipeline2subcategory.tsv"
+  fi
+  export SUBCATEGORY_MAP_TSV
 
   [[ -d "$TEMPLATE_ROOT" ]] || die "Template directory not found: $TEMPLATE_ROOT"
   prepare_output_dir "$OUTPUT_DIR" "$FORCE_OVERWRITE"
