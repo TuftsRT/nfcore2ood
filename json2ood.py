@@ -43,6 +43,10 @@ STATIC_FORM_FIELDS = [
 TRAILING_FORM_FIELDS = ["resume"]
 
 
+# Values that can appear in a JSON Schema ``default`` or ``enum``.
+SchemaValue = str | int | float | bool | None
+
+
 @dataclass(frozen=True)
 class FieldSpec:
     """Normalized representation of a schema property."""
@@ -53,8 +57,8 @@ class FieldSpec:
     help_text: str
     widget_type: str | None
     required: bool
-    default_value: Any = None
-    enum_values: tuple[Any, ...] = ()
+    default_value: SchemaValue = None
+    enum_values: tuple[SchemaValue, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -267,12 +271,18 @@ def render_field(field_spec: FieldSpec) -> list[str]:
         lines.append("    required: true")
 
     if field_spec.widget_type == "check_box":
+        # Render booleans as a two-option select so the OOD form picks up
+        # data-hide-...-when-un-checked rules consistently. The default option
+        # is listed first so OOD treats it as the initial selection.
         lines.append("    widget: select")
-        default_option = "true" if field_spec.default_value is True else "false"
-        alternate_option = "false" if default_option == "true" else "true"
-        lines.extend(render_select_options(default_option, (default_option, alternate_option)))
+        is_default_true = field_spec.default_value is True
+        default_str = "true" if is_default_true else "false"
+        other_str = "false" if is_default_true else "true"
+        lines.append("    options:")
+        lines.append(f"      - ['{default_str}', '{default_str}']")
+        lines.append(f"      - ['{other_str}', '{other_str}']")
         if isinstance(field_spec.default_value, bool):
-            lines.append(f"    value: {'true' if field_spec.default_value else 'false'}")
+            lines.append(f"    value: {default_str}")
     elif field_spec.widget_type == "text_field":
         lines.append("    widget: text_field")
         if field_spec.default_value not in (None, ""):
@@ -286,7 +296,14 @@ def render_field(field_spec: FieldSpec) -> list[str]:
         lines.append('      - "<%= ENV.fetch(\'HOME\', \'/\') %>"')
     elif field_spec.widget_type == "number_field":
         lines.append("    widget: number_field")
-        if isinstance(field_spec.default_value, (int, float)):
+        # bool is a subclass of int in Python, so an explicit bool check is
+        # needed to keep "value: True" / "value: False" from leaking into the
+        # YAML when a schema (unusually) types a flag as a number with a
+        # boolean default.
+        if (
+            isinstance(field_spec.default_value, (int, float))
+            and not isinstance(field_spec.default_value, bool)
+        ):
             lines.append(f"    value: {field_spec.default_value}")
         lines.append("    step: 1")
     elif field_spec.widget_type == "select":
