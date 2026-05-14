@@ -305,9 +305,17 @@ customize_generated_app() {
   # Soft defaults that are reasonable cross-site values.
   rendered_cluster="$(config_value NF2OOD_CLUSTER "cluster")"
   rendered_default_directory="$(config_value NF2OOD_DEFAULT_DIRECTORY "$HOME")"
-  rendered_module_name="$(config_value NF2OOD_MODULE_NAME "nextflow")"
-  rendered_container_module="$(config_value NF2OOD_CONTAINER_MODULE "singularity")"
   rendered_env_file="$(config_value NF2OOD_ENV_FILE "")"
+
+  # Module names use ${var-default} (no colon) so that an explicit empty
+  # value in nf2ood.env means "do not load a module for this slot". Sites
+  # that install nextflow / singularity / apptainer system-wide (no module
+  # system, or modules without these names) can set either of these to ""
+  # to skip the corresponding `module load` at job runtime. The runtime
+  # script already guards each `module load` with an -n check, so an empty
+  # value here propagates correctly.
+  rendered_module_name="${NF2OOD_MODULE_NAME-nextflow}"
+  rendered_container_module="${NF2OOD_CONTAINER_MODULE-singularity}"
 
   # Build the --set TOKEN=VALUE arglist once and apply all substitutions in a
   # single Python pass over the small set of files in the app dir.

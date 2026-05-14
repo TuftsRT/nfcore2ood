@@ -145,8 +145,8 @@ warning:
 
 - `NF2OOD_CLUSTER` (default `cluster`): Open OnDemand cluster id written into `form.yml.erb`
 - `NF2OOD_DEFAULT_DIRECTORY` (default `$HOME`): default working directory shown in the app form
-- `NF2OOD_MODULE_NAME` (default `nextflow`): main runtime module
-- `NF2OOD_CONTAINER_MODULE` (default `singularity`): container runtime module
+- `NF2OOD_MODULE_NAME` (default `nextflow`, `""` to skip): name of the Nextflow environment module the generated job wrapper should `module load`. Set explicitly to `""` if your site installs Nextflow system-wide and there is no module to load.
+- `NF2OOD_CONTAINER_MODULE` (default `singularity`, `""` to skip): name of the container-engine environment module to `module load` at job runtime. Set explicitly to `""` for sites where Singularity / Apptainer is installed as an OS package rather than as an environment module. The runtime wrapper also auto-skips module loading entirely on compute nodes that have no `module` function at all.
 - `NF2OOD_ENV_FILE` (default empty): path that generated runtime scripts will try to source
 
 Downloader defaults are derived from those settings:
