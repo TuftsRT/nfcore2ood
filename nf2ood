@@ -143,7 +143,8 @@ locate_schema() {
     fi
   done
 
-  die "Could not find nextflow_schema.json for ${pipeline_name} ${pipeline_version}"
+  # Non-fatal: caller logs and adds to the failure summary.
+  return 1
 }
 
 resolve_pipeline_image_url() {
@@ -238,7 +239,7 @@ replace_literal_in_file() {
   local replacement=$3
 
   [[ -f "$file_path" ]] || die "Cannot replace text in missing file: $file_path"
-  FILE_PATH="$file_path" NEEDLE="$needle" REPLACEMENT="$replacement" perl -0pi -e 's/\Q$ENV{NEEDLE}\E/$ENV{REPLACEMENT}/g' "$file_path"
+  NEEDLE="$needle" REPLACEMENT="$replacement" perl -0pi -e 's/\Q$ENV{NEEDLE}\E/$ENV{REPLACEMENT}/g' "$file_path"
 }
 
 remove_banner_block() {
@@ -340,7 +341,12 @@ generate_app() {
 
   rendered_version="${pipeline_version//./-}"
   app_dir="${output_dir}/${pipeline_name}-${rendered_version}"
-  schema_path="$(locate_schema "$input_dir" "$pipeline_name" "$pipeline_version")"
+
+  if ! schema_path="$(locate_schema "$input_dir" "$pipeline_name" "$pipeline_version")"; then
+    log "WARNING: nextflow_schema.json not found for ${pipeline_name} ${pipeline_version}; skipping."
+    return 1
+  fi
+
   base_form="${app_dir}/form.template.erb"
   generated_form="${app_dir}/form.yml.erb"
   params_template="${app_dir}/template/nf-params.json.erb"
@@ -428,6 +434,11 @@ main() {
   [[ -d "$TEMPLATE_ROOT" ]] || die "Template directory not found: $TEMPLATE_ROOT"
   prepare_output_dir "$OUTPUT_DIR" "$FORCE_OVERWRITE"
 
+  # Result accumulators; printed by print_summary at the end.
+  GENERATED_APPS=()
+  FAILED_APPS=()
+  SKIPPED_VERSIONS=()
+
   local pipeline_name pipeline_version
   while IFS= read -r pipeline_name; do
     [[ -n "$pipeline_name" ]] || continue
@@ -435,14 +446,55 @@ main() {
 
     while IFS= read -r pipeline_version; do
       [[ -n "$pipeline_version" ]] || continue
-      if [[ ! "$pipeline_version" =~ ^[0-9] ]]; then
-        log "Skipping non-version directory: ${pipeline_name}/${pipeline_version}"
+      # Accept SemVer-ish version directories (e.g. 3.18.0, 1.2.6, 1.0.0-rc1).
+      # This rejects dev/latest/main/etc. without needing an explicit skip log.
+      if [[ ! "$pipeline_version" =~ ^[0-9]+\.[0-9] ]]; then
+        SKIPPED_VERSIONS+=("${pipeline_name}/${pipeline_version}")
         continue
       fi
 
-      generate_app "$INPUT_DIR" "$OUTPUT_DIR" "$IMAGE_MAP_TSV" "$pipeline_name" "$pipeline_version"
+      # Used as an `if` test so set -e does not abort the whole loop on a
+      # per-app failure; the failure is recorded and reported in the summary.
+      if generate_app "$INPUT_DIR" "$OUTPUT_DIR" "$IMAGE_MAP_TSV" "$pipeline_name" "$pipeline_version"; then
+        GENERATED_APPS+=("${pipeline_name} ${pipeline_version}")
+      else
+        FAILED_APPS+=("${pipeline_name} ${pipeline_version}")
+      fi
     done < <(list_versions "${INPUT_DIR}/${pipeline_name}")
   done < <(list_pipelines "$INPUT_DIR")
+
+  print_summary
+
+  if (( ${#FAILED_APPS[@]} > 0 )); then
+    return 1
+  fi
+}
+
+print_summary() {
+  log "----------------------------------------"
+  log "Generation summary:"
+  log "  Generated:                ${#GENERATED_APPS[@]}"
+  log "  Failed/skipped:           ${#FAILED_APPS[@]}"
+  log "  Non-version dirs ignored: ${#SKIPPED_VERSIONS[@]}"
+
+  if (( ${#FAILED_APPS[@]} > 0 )); then
+    log ""
+    log "Failed/skipped pipelines:"
+    local entry
+    for entry in "${FAILED_APPS[@]}"; do
+      log "  - ${entry}"
+    done
+  fi
+
+  if (( ${#SKIPPED_VERSIONS[@]} > 0 )); then
+    log ""
+    log "Non-version directories ignored (informational):"
+    local entry
+    for entry in "${SKIPPED_VERSIONS[@]}"; do
+      log "  - ${entry}"
+    done
+  fi
+  log "----------------------------------------"
 }
 
 main "$@"
