@@ -145,7 +145,6 @@ const iconMap = {
   "simpleaf options": ICONS.microscope,
   "shiny app settings": ICONS.app,
   "reproducibility options": ICONS.lock,
-  "tower_access_token (optional)": ICONS.key,
 };
 
 const prefixIconMap = {
@@ -356,7 +355,7 @@ function isFirstLevelControllerLabel(label) {
 
 function isAlwaysIconLabel(labelText) {
   const normalized = normalizeLabel(labelText);
-  return /\b(cores?|cpus?|memory|ram|hours?|time|walltime|resume|tower_access_token|tower access token|workdir|working directory)\b/.test(
+  return /\b(cores?|cpus?|memory|ram|hours?|time|walltime|resume|workdir|working directory)\b/.test(
     normalized
   );
 }

@@ -40,7 +40,7 @@ STATIC_FORM_FIELDS = [
     "num_memory",
     "workdir",
 ]
-TRAILING_FORM_FIELDS = ["tower_access_token", "resume"]
+TRAILING_FORM_FIELDS = ["resume"]
 
 
 @dataclass(frozen=True)

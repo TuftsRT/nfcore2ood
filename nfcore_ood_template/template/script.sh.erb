@@ -20,12 +20,6 @@ if [[ "<%= context.resume %>" == "1" ]]; then
   resume_flag+=("-resume")
 fi
 
-tower_flag=()
-if [[ -n "${TOWER_ACCESS_TOKEN:="<%= context.tower_access_token %>"}" && -n "${TOWER_ACCESS_TOKEN// }" ]]; then
-  export TOWER_ACCESS_TOKEN
-  tower_flag+=("-with-tower")
-fi
-
 # If configured, source the same environment file that was used during app
 # generation so runtime defaults stay aligned with generation defaults.
 nf2ood_env_file="__NF2OOD_ENV_FILE__"
@@ -79,7 +73,6 @@ EOF
 fi
 
 nextflow_command+=("${resume_flag[@]}")
-nextflow_command+=("${tower_flag[@]}")
 
 printf 'Executing: %q ' "${nextflow_command[@]}"
 printf '\n'
