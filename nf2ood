@@ -20,7 +20,8 @@ die() {
 usage() {
   cat <<'EOF'
 Usage: nf2ood --input INPUT_DIR --output OUTPUT_DIR [--image-map TSV]
-              [--subcategory-map TSV] [--force] [--dry-run]
+              [--subcategory-map TSV] [--pipeline NAME] [--version VER]
+              [--force] [--dry-run]
 
 Generate Open OnDemand apps from nf-core pipeline downloads.
 
@@ -35,7 +36,14 @@ Optional arguments:
   -s, --subcategory-map  TSV mapping of pipeline name to OOD subcategory
                          Format: <pipeline_name>\t<subcategory>
                          Default: ./pipeline2subcategory.tsv when present
-  -f, --force            Delete the existing output directory before generating apps
+  -p, --pipeline NAME    Only process pipelines matching NAME. Accepts either
+                         the full directory name (e.g. nf-core-rnaseq) or just
+                         the slug (e.g. rnaseq). Repeatable.
+  -v, --version VER      Only process versions matching VER (e.g. 3.18.0).
+                         Repeatable.
+  -f, --force            Delete the existing output directory before generating
+                         apps. Ignored when --pipeline or --version is given so
+                         unrelated apps in the output directory are preserved.
   -n, --dry-run          Print what would be generated without writing any files
   -h, --help             Show this help message
 
@@ -122,6 +130,38 @@ list_pipelines() {
 list_versions() {
   local pipeline_dir=$1
   find "$pipeline_dir" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -exec basename {} \; | sort
+}
+
+pipeline_matches_filter() {
+  # Returns 0 if no filter is set or if pipeline_name matches any entry.
+  # Filters can be specified as the full dir name (nf-core-rnaseq) or just
+  # the slug (rnaseq); both are accepted.
+  local pipeline_name=$1
+  (( ${#PIPELINE_FILTER[@]} == 0 )) && return 0
+
+  local filter normalized_filter
+  for filter in "${PIPELINE_FILTER[@]}"; do
+    normalized_filter=$filter
+    [[ "$normalized_filter" != nf-core-* ]] && normalized_filter="nf-core-${normalized_filter}"
+    if [[ "$pipeline_name" == "$filter" || "$pipeline_name" == "$normalized_filter" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+version_matches_filter() {
+  # Returns 0 if no filter is set or if pipeline_version matches any entry.
+  local pipeline_version=$1
+  (( ${#VERSION_FILTER[@]} == 0 )) && return 0
+
+  local filter
+  for filter in "${VERSION_FILTER[@]}"; do
+    if [[ "$pipeline_version" == "$filter" ]]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 locate_schema() {
@@ -360,6 +400,10 @@ generate_app() {
   params_template="${app_dir}/template/nf-params.json.erb"
 
   log "Generating ${pipeline_name} ${pipeline_version}"
+  # Idempotent: when filtering, the output dir is reused, so an existing app
+  # dir is removed first so cp -R produces a clean copy rather than nesting
+  # the template inside it.
+  [[ -d "$app_dir" ]] && rm -rf "$app_dir"
   cp -R "$TEMPLATE_ROOT" "$app_dir"
 
   python3 "$REPO_ROOT/json2ood.py" \
@@ -379,6 +423,8 @@ parse_args() {
   SUBCATEGORY_MAP_TSV=""
   FORCE_OVERWRITE="false"
   DRY_RUN="false"
+  PIPELINE_FILTER=()
+  VERSION_FILTER=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -400,6 +446,16 @@ parse_args() {
       -s|--subcategory-map)
         [[ $# -ge 2 ]] || die "Missing value for $1"
         SUBCATEGORY_MAP_TSV=$2
+        shift 2
+        ;;
+      -p|--pipeline)
+        [[ $# -ge 2 ]] || die "Missing value for $1"
+        PIPELINE_FILTER+=("$2")
+        shift 2
+        ;;
+      -v|--version)
+        [[ $# -ge 2 ]] || die "Missing value for $1"
+        VERSION_FILTER+=("$2")
         shift 2
         ;;
       -f|--force)
@@ -446,8 +502,19 @@ main() {
 
   [[ -d "$TEMPLATE_ROOT" ]] || die "Template directory not found: $TEMPLATE_ROOT"
 
+  local has_filter="false"
+  if (( ${#PIPELINE_FILTER[@]} > 0 || ${#VERSION_FILTER[@]} > 0 )); then
+    has_filter="true"
+  fi
+
   if [[ "$DRY_RUN" == "true" ]]; then
     log "Dry run: no files will be created. Output directory ${OUTPUT_DIR} will not be modified."
+  elif [[ "$has_filter" == "true" ]]; then
+    # Filtered regeneration: keep unrelated apps in the output dir intact.
+    if [[ "$FORCE_OVERWRITE" == "true" ]]; then
+      log "Filter active: --force ignored so unrelated apps in ${OUTPUT_DIR} are preserved."
+    fi
+    mkdir -p "$OUTPUT_DIR"
   else
     prepare_output_dir "$OUTPUT_DIR" "$FORCE_OVERWRITE"
   fi
@@ -460,6 +527,11 @@ main() {
   local pipeline_name pipeline_version
   while IFS= read -r pipeline_name; do
     [[ -n "$pipeline_name" ]] || continue
+
+    if ! pipeline_matches_filter "$pipeline_name"; then
+      continue
+    fi
+
     log "Scanning pipeline: $pipeline_name"
 
     while IFS= read -r pipeline_version; do
@@ -468,6 +540,10 @@ main() {
       # This rejects dev/latest/main/etc. without needing an explicit skip log.
       if [[ ! "$pipeline_version" =~ ^[0-9]+\.[0-9] ]]; then
         SKIPPED_VERSIONS+=("${pipeline_name}/${pipeline_version}")
+        continue
+      fi
+
+      if ! version_matches_filter "$pipeline_version"; then
         continue
       fi
 

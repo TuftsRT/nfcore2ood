@@ -198,7 +198,24 @@ Optional flags:
 - `-m, --image-map /path/to/pipeline2image.tsv`: override the default pipeline image map
 - `-s, --subcategory-map /path/to/pipeline2subcategory.tsv`: override the default
   pipeline-to-subcategory map
-- `-f, --force`: remove the output directory before regeneration
+- `-p, --pipeline NAME`: only process pipelines matching `NAME` (accepts
+  `nf-core-rnaseq` or just `rnaseq`). Repeatable.
+- `-v, --version VER`: only process versions matching `VER` (e.g. `3.18.0`).
+  Repeatable.
+- `-f, --force`: delete the existing output directory before regeneration.
+  Ignored when `--pipeline` or `--version` is given so unrelated apps in the
+  output directory are preserved.
+- `-n, --dry-run`: print what would be generated without writing any files.
+
+When `--pipeline` or `--version` is set, the output directory is reused; only
+the matching app directories are regenerated and other apps are left alone.
+This is the recommended way to refresh a single app after a pipeline update
+without rebuilding the whole tree.
+
+A final summary lists how many apps were generated, how many failed (e.g.
+missing `nextflow_schema.json`), and how many non-version directories like
+`dev` or `latest` were ignored. `nf2ood` exits non-zero if any pipeline
+failed.
 
 Help:
 
