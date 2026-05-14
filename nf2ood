@@ -274,57 +274,23 @@ determine_subcategory() {
   esac
 }
 
-replace_literal_in_file() {
-  local file_path=$1
-  local needle=$2
-  local replacement=$3
-
-  [[ -f "$file_path" ]] || die "Cannot replace text in missing file: $file_path"
-  NEEDLE="$needle" REPLACEMENT="$replacement" perl -0pi -e 's/\Q$ENV{NEEDLE}\E/$ENV{REPLACEMENT}/g' "$file_path"
-}
-
-remove_banner_block() {
-  local form_file=$1
-  [[ -f "$form_file" ]] || die "Cannot update missing file: $form_file"
-  perl -0pi -e 's@\n  <!-- NF2OOD_BANNER_START -->.*?<!-- NF2OOD_BANNER_END -->\n@@s' "$form_file"
-}
-
-generate_app_readme() {
-  local template_root=$1
-  local app_dir=$2
-  local pipeline_name=$3
-  local pipeline_version=$4
-  local pipeline_slug="${pipeline_name#nf-core-}"
-  local display_name="nf-core/${pipeline_slug}"
-  local source_url="https://nf-co.re/${pipeline_slug}"
-  local repo_url="https://github.com/nf-core/${pipeline_slug}"
-
-  cp "${template_root}/README.md" "${app_dir}/README.md"
-
-  replace_literal_in_file "${app_dir}/README.md" "__PIPELINE_NAME__" "$pipeline_name"
-  replace_literal_in_file "${app_dir}/README.md" "__PIPELINE_SLUG__" "$pipeline_slug"
-  replace_literal_in_file "${app_dir}/README.md" "__PIPELINE_DISPLAY_NAME__" "$display_name"
-  replace_literal_in_file "${app_dir}/README.md" "__PIPELINE_VERSION__" "$pipeline_version"
-  replace_literal_in_file "${app_dir}/README.md" "__PIPELINE_SOURCE_URL__" "$source_url"
-  replace_literal_in_file "${app_dir}/README.md" "__PIPELINE_REPOSITORY_URL__" "$repo_url"
-}
-
 customize_generated_app() {
   local app_dir=$1
   local pipeline_name=$2
   local pipeline_version=$3
   local image_map_tsv=$4
-  local image_url subcategory app_slug version_path
+
+  local pipeline_slug="${pipeline_name#nf-core-}"
+  local app_slug version_path image_url subcategory
   local rendered_cluster rendered_default_directory rendered_module_name
   local rendered_pipeline_root rendered_singularity_cache rendered_slurm_profile
-  local rendered_container_module
-  local rendered_partition_partial
-  local rendered_env_file
+  local rendered_container_module rendered_partition_partial rendered_env_file
 
   app_slug="$(basename "$app_dir")"
   version_path="${pipeline_version}/${pipeline_version//./_}"
   image_url="$(resolve_pipeline_image_url "$image_map_tsv" "$pipeline_name" "$pipeline_version")"
   subcategory="$(determine_subcategory "$pipeline_name")"
+
   # Required (validated up front by validate_environment).
   rendered_pipeline_root="$(require_env NF2OOD_PIPELINE_ROOT)"
   rendered_singularity_cache="$(require_env NF2OOD_SINGULARITY_CACHEDIR)"
@@ -340,36 +306,36 @@ customize_generated_app() {
   rendered_container_module="$(config_value NF2OOD_CONTAINER_MODULE "singularity")"
   rendered_env_file="$(config_value NF2OOD_ENV_FILE "")"
 
-  replace_literal_in_file "${app_dir}/submit.yml.erb" "__PIPELINE_NAME__" "$pipeline_name"
-  replace_literal_in_file "${app_dir}/manifest.yml" "__PIPELINE_NAME__" "$pipeline_name"
-  replace_literal_in_file "${app_dir}/manifest.yml" "__PIPELINE_VERSION__" "$pipeline_version"
-  replace_literal_in_file "${app_dir}/manifest.yml" "__PIPELINE_SLUG__" "${pipeline_name#nf-core-}"
-  replace_literal_in_file "${app_dir}/manifest.yml" "__SUBCATEGORY__" "$subcategory"
-  replace_literal_in_file "${app_dir}/form.yml.erb" "__PIPELINE_NAME__" "$pipeline_name"
-  replace_literal_in_file "${app_dir}/form.yml.erb" "__APP_SLUG__" "$app_slug"
-  replace_literal_in_file "${app_dir}/form.yml.erb" "__NF2OOD_CLUSTER__" "$rendered_cluster"
-  replace_literal_in_file "${app_dir}/form.yml.erb" "__NF2OOD_DEFAULT_DIRECTORY__" "$rendered_default_directory"
-  replace_literal_in_file "${app_dir}/form.yml.erb" "__NF2OOD_PARTITION_YML__" "$rendered_partition_partial"
-  replace_literal_in_file "${app_dir}/template/script.sh.erb" "__PIPELINE_NAME__" "$pipeline_name"
-  replace_literal_in_file "${app_dir}/template/script.sh.erb" "__PIPELINE_VERSION_PATH__" "$version_path"
-  replace_literal_in_file "${app_dir}/template/script.sh.erb" "__NF2OOD_ENV_FILE__" "$rendered_env_file"
-  replace_literal_in_file "${app_dir}/template/script.sh.erb" "__NF2OOD_MODULE_NAME__" "$rendered_module_name"
-  replace_literal_in_file "${app_dir}/template/script.sh.erb" "__NF2OOD_CONTAINER_MODULE__" "$rendered_container_module"
-  replace_literal_in_file "${app_dir}/template/script.sh.erb" "__NF2OOD_PIPELINE_ROOT__" "$rendered_pipeline_root"
-  replace_literal_in_file "${app_dir}/template/script.sh.erb" "__NF2OOD_SINGULARITY_CACHEDIR__" "$rendered_singularity_cache"
-  replace_literal_in_file "${app_dir}/template/script.sh.erb" "__NF2OOD_SLURM_PROFILE__" "$rendered_slurm_profile"
+  # Build the --set TOKEN=VALUE arglist once and apply all substitutions in a
+  # single Python pass over the small set of files in the app dir.
+  local -a customize_args=(
+    --set "__PIPELINE_NAME__=${pipeline_name}"
+    --set "__PIPELINE_SLUG__=${pipeline_slug}"
+    --set "__PIPELINE_VERSION__=${pipeline_version}"
+    --set "__PIPELINE_VERSION_PATH__=${version_path}"
+    --set "__PIPELINE_DISPLAY_NAME__=nf-core/${pipeline_slug}"
+    --set "__PIPELINE_SOURCE_URL__=https://nf-co.re/${pipeline_slug}"
+    --set "__PIPELINE_REPOSITORY_URL__=https://github.com/nf-core/${pipeline_slug}"
+    --set "__APP_SLUG__=${app_slug}"
+    --set "__SUBCATEGORY__=${subcategory}"
+    --set "__NF2OOD_CLUSTER__=${rendered_cluster}"
+    --set "__NF2OOD_DEFAULT_DIRECTORY__=${rendered_default_directory}"
+    --set "__NF2OOD_PARTITION_YML__=${rendered_partition_partial}"
+    --set "__NF2OOD_MODULE_NAME__=${rendered_module_name}"
+    --set "__NF2OOD_CONTAINER_MODULE__=${rendered_container_module}"
+    --set "__NF2OOD_PIPELINE_ROOT__=${rendered_pipeline_root}"
+    --set "__NF2OOD_SINGULARITY_CACHEDIR__=${rendered_singularity_cache}"
+    --set "__NF2OOD_SLURM_PROFILE__=${rendered_slurm_profile}"
+    --set "__NF2OOD_ENV_FILE__=${rendered_env_file}"
+  )
 
   if [[ -n "$image_url" ]]; then
-    replace_literal_in_file "${app_dir}/form.yml.erb" "__BANNER_IMAGE_URL__" "$image_url"
+    customize_args+=(--set "__BANNER_IMAGE_URL__=${image_url}")
   else
-    remove_banner_block "${app_dir}/form.yml.erb"
+    customize_args+=(--remove-banner)
   fi
 
-  # Keep the generated YAML compatible with OOD expectations.
-  replace_literal_in_file "${app_dir}/form.yml.erb" "value: True" "value: true"
-  replace_literal_in_file "${app_dir}/form.yml.erb" "value: False" "value: false"
-
-  generate_app_readme "$TEMPLATE_ROOT" "$app_dir" "$pipeline_name" "$pipeline_version"
+  python3 "$REPO_ROOT/customize_app.py" "$app_dir" "${customize_args[@]}"
 }
 
 generate_app() {
@@ -487,7 +453,6 @@ main() {
   parse_args "$@"
 
   require_command python3
-  require_command perl
 
   validate_environment
 
