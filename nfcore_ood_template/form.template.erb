@@ -24,6 +24,13 @@ attributes:
     step: 1
     help: Requested walltime for the launch job.
 
+  bc_email_on_started:
+    label: Email when job starts
+    widget: check_box
+    checked_value: 1
+    unchecked_value: 0
+    help: Send an email notification when the Open OnDemand launch job starts.
+
 <%= File.read("__NF2OOD_PARTITION_YML__").indent(2) %>
 
   num_cores:

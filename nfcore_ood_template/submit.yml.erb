@@ -6,7 +6,7 @@ batch_connect:
     - output_log_path
 
 script:
-  email_on_started: false
+  email_on_started: <%= bc_email_on_started.to_s == "1" %>
   email_on_terminated: false
   job_name: "OnDemand/__PIPELINE_NAME__"
   native:
