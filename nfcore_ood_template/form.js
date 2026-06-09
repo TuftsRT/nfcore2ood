@@ -83,10 +83,14 @@ const ICONS = {
   vial: "fa fa-fw me-2 fas fa-vial",
   puzzle: "fa fa-fw me-2 fas fa-puzzle-piece",
   key: "fa fa-fw me-2 fas fa-key",
+  mail: "fa fa-fw me-2 fas fa-envelope",
+  branch: "fa fa-fw me-2 fas fa-code-branch",
 };
 
 const iconMap = {
   "number of hours": ICONS.clock,
+  "nextflow version": ICONS.branch,
+  "email when job starts": ICONS.mail,
   "working directory": ICONS.folder,
   "number of cores": ICONS.chip,
   "amount of memory (gb)": ICONS.chip,
@@ -351,7 +355,8 @@ function isFirstLevelControllerLabel(label) {
   );
 }
 
-function isAlwaysIconLabel(labelText) {
+function isAlwaysIconLabel(labelText, fieldKey) {
+  if (["nextflowversion", "bcemailonstarted"].includes(fieldKey)) return true;
   const normalized = normalizeLabel(labelText);
   return /\b(cores?|cpus?|memory|ram|hours?|time|walltime|resume|workdir|working directory)\b/.test(
     normalized
@@ -363,7 +368,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const labelText = label.textContent || "";
     const fieldKey = getLabelFieldKey(label);
     const isFirstLevel = isFirstLevelControllerLabel(label);
-    const isCommonOOD = isAlwaysIconLabel(labelText);
+    const isCommonOOD = isAlwaysIconLabel(labelText, fieldKey);
 
     // Icons only for first-level controller fields, plus common OOD resource fields.
     if (!isFirstLevel && !isCommonOOD) {

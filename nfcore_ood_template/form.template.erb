@@ -4,6 +4,16 @@ require "open3"
 nextflow_module_name = "__NF2OOD_MODULE_NAME__".to_s.strip
 nextflow_versions = []
 
+def nextflow_version_sort_key(version)
+  version.scan(/\d+|[A-Za-z]+/).map do |part|
+    if part.match?(/\A\d+\z/)
+      [0, part.to_i]
+    else
+      [1, part.downcase]
+    end
+  end
+end
+
 if !nextflow_module_name.empty?
   begin
     module_avail_output, = Open3.capture2(
@@ -14,7 +24,7 @@ if !nextflow_module_name.empty?
       normalized = line.strip.sub(/\s+\(.*\)\z/, "")
       match = normalized.match(/\A#{Regexp.escape(nextflow_module_name)}\/(.+)\z/)
       match && match[1]
-    end.uniq
+    end.uniq.sort_by { |version| nextflow_version_sort_key(version) }.reverse
   rescue StandardError
     nextflow_versions = []
   end
@@ -58,17 +68,16 @@ attributes:
     label: Nextflow version
     widget: select
     options:
-      - ["Site default", ""]
 <% nextflow_versions.each do |version| %>
       - ["<%= version %>", "<%= version %>"]
 <% end %>
-    help: Optional Nextflow module version to load instead of the site default.
+    help: Use an older Nextflow version when running previous nf-core pipeline releases.
 <% elsif !nextflow_module_name.empty? %>
   nextflow_version:
     label: Nextflow version
     widget: text_field
     required: false
-    help: Optional Nextflow module version suffix, for example `24.10.5`. Leave blank to load the site default module.
+    help: Use an older Nextflow version when running previous nf-core pipeline releases.
 <% end %>
 
 <%= File.read("__NF2OOD_PARTITION_YML__").indent(2) %>
