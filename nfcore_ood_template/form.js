@@ -358,7 +358,7 @@ function isFirstLevelControllerLabel(label) {
 function isAlwaysIconLabel(labelText, fieldKey) {
   if (["nextflowversion", "bcemailonstarted"].includes(fieldKey)) return true;
   const normalized = normalizeLabel(labelText);
-  return /\b(cores?|cpus?|memory|ram|hours?|time|walltime|resume|workdir|working directory)\b/.test(
+  return /\b(nextflow version|email when job starts|cores?|cpus?|memory|ram|hours?|time|walltime|resume|workdir|working directory)\b/.test(
     normalized
   );
 }
