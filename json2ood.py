@@ -34,6 +34,8 @@ ALWAYS_INCLUDE_HIDDEN = {"igenomes_base", "igenomes_ignore"}
 PATH_FORMATS = {"file-path", "path", "directory-path"}
 STATIC_FORM_FIELDS = [
     "bc_num_hours",
+    "bc_email_on_started",
+    "nextflow_version",
     "executor",
     "partition",
     "num_cores",
