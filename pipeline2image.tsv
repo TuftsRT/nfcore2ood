@@ -18,7 +18,7 @@ drugresponseeval	https://raw.githubusercontent.com/nf-core/drugresponseeval/1.2.
 pixelator	https://raw.githubusercontent.com/nf-core/pixelator/2.3.1//docs/images/nf-core-pixelator-metromap.svg
 mhcquant	https://raw.githubusercontent.com/nf-core/mhcquant/3.1.0//assets/mhcquant_subway.png
 smrnaseq	
-proteinfamilies	https://raw.githubusercontent.com/nf-core/proteinfamilies/2.2.0//docs/images/proteinfamilies_workflow_light.png
+proteinfamilies	https://raw.githubusercontent.com/nf-core/proteinfamilies/2.4.0//docs/images/proteinfamilies_workflow_light.png
 methylseq	https://raw.githubusercontent.com/nf-core/methylseq/4.2.0//docs/images/4.2.0_metromap.png
 rnaseq	https://raw.githubusercontent.com/nf-core/rnaseq/3.23.0//docs/images/nf-core-rnaseq_metro_map_grey_animated.svg
 oncoanalyser	https://raw.githubusercontent.com/nf-core/oncoanalyser/2.3.0//docs/images/oncoanalyser_pipeline.png
