@@ -1,6 +1,6 @@
 # nf2ood
 
-**Version: 1.1.0** &middot; [CHANGELOG](./CHANGELOG.md)
+**Version: 1.2.0** &middot; [CHANGELOG](./CHANGELOG.md)
 
 `nf2ood` generates Open OnDemand batch-connect apps from locally downloaded
 nf-core pipelines. The repository includes both the download step and the

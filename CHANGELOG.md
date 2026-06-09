@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
+## [1.2.0] - 2026-06-09
+
+This release adds a user-selectable Nextflow version control to generated
+Open OnDemand apps so older nf-core pipeline releases can run against a
+compatible Nextflow module version.
+
+### Added
+
+- Generated apps now expose a top-level `Nextflow version` control.
+- The form template attempts to discover available Nextflow module versions
+  automatically from `module avail`, avoiding hardcoded version lists when
+  the OOD host can inspect the module tree.
+- Runtime wrapper logic now loads `nextflow/<selected_version>` when the user
+  chooses an explicit version.
+
+### Changed
+
+- The generated form now keeps `bc_email_on_started` and `nextflow_version`
+  in the rendered `form:` order reliably.
+- The `Nextflow version` field defaults to the newest discovered module
+  version instead of a separate `Site default` placeholder.
+- Help text for `Nextflow version` now explains the backward-compatibility use
+  case for older nf-core pipeline releases.
+- `Email when job starts` now appears at the end of the generated form.
+- Top-level styling and icons now apply to both `Nextflow version` and
+  `Email when job starts`.
+
 ## [1.1.0] - 2026-05-14
 
 This release focuses on portability for non-Tufts HPC centers, robustness of
@@ -126,6 +153,7 @@ apps from locally downloaded nf-core pipelines, including the download
 step (`download_nfcore_pipeline.sh`) and the schema-to-form converter
 (`json2ood.py`). No explicit version tag; see git history for details.
 
-[Unreleased]: https://github.com/TuftsRT/nfcore2ood/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/TuftsRT/nfcore2ood/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/TuftsRT/nfcore2ood/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/TuftsRT/nfcore2ood/compare/5d20ce7...v1.1.0
 [1.0.0]: https://github.com/TuftsRT/nfcore2ood/tree/5d20ce7
