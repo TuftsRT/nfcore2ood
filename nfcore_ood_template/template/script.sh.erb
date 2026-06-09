@@ -33,11 +33,16 @@ container_module="${NF2OOD_CONTAINER_MODULE:-__NF2OOD_CONTAINER_MODULE__}"
 pipeline_root="${NF2OOD_PIPELINE_ROOT:-__NF2OOD_PIPELINE_ROOT__}"
 singularity_cache="${NF2OOD_SINGULARITY_CACHEDIR:-__NF2OOD_SINGULARITY_CACHEDIR__}"
 slurm_profile="${NF2OOD_SLURM_PROFILE:-__NF2OOD_SLURM_PROFILE__}"
+nextflow_version="<%= context.nextflow_version.to_s.strip %>"
 
 if [[ $(type -t module || true) == "function" ]]; then
   module purge
   if [[ -n "${module_name}" ]]; then
-    module load "${module_name}"
+    if [[ -n "${nextflow_version}" ]]; then
+      module load "${module_name}/${nextflow_version}"
+    else
+      module load "${module_name}"
+    fi
   fi
   if [[ -n "${container_module}" ]]; then
     module load "${container_module}"

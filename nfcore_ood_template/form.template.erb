@@ -1,3 +1,25 @@
+<%
+require "open3"
+
+nextflow_module_name = "__NF2OOD_MODULE_NAME__".to_s.strip
+nextflow_versions = []
+
+if !nextflow_module_name.empty?
+  begin
+    module_avail_output, = Open3.capture2(
+      "bash", "-lc", "module -t avail #{nextflow_module_name} 2>&1 || true"
+    )
+
+    nextflow_versions = module_avail_output.lines.filter_map do |line|
+      normalized = line.strip.sub(/\s+\(.*\)\z/, "")
+      match = normalized.match(/\A#{Regexp.escape(nextflow_module_name)}\/(.+)\z/)
+      match && match[1]
+    end.uniq
+  rescue StandardError
+    nextflow_versions = []
+  end
+end
+%>
 ---
 cluster: "__NF2OOD_CLUSTER__"
 form_header: |
@@ -30,6 +52,24 @@ attributes:
     checked_value: 1
     unchecked_value: 0
     help: Send an email notification when the Open OnDemand launch job starts.
+
+<% if !nextflow_module_name.empty? && nextflow_versions.any? %>
+  nextflow_version:
+    label: Nextflow version
+    widget: select
+    options:
+      - ["Site default", ""]
+<% nextflow_versions.each do |version| %>
+      - ["<%= version %>", "<%= version %>"]
+<% end %>
+    help: Optional Nextflow module version to load instead of the site default.
+<% elsif !nextflow_module_name.empty? %>
+  nextflow_version:
+    label: Nextflow version
+    widget: text_field
+    required: false
+    help: Optional Nextflow module version suffix, for example `24.10.5`. Leave blank to load the site default module.
+<% end %>
 
 <%= File.read("__NF2OOD_PARTITION_YML__").indent(2) %>
 
