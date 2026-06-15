@@ -1,35 +1,4 @@
-<%
-require "open3"
-
-nextflow_module_name = "__NF2OOD_MODULE_NAME__".to_s.strip
-nextflow_versions = []
-
-def nextflow_version_sort_key(version)
-  version.scan(/\d+|[A-Za-z]+/).map do |part|
-    if part.match?(/\A\d+\z/)
-      [0, part.to_i]
-    else
-      [1, part.downcase]
-    end
-  end
-end
-
-if !nextflow_module_name.empty?
-  begin
-    module_avail_output, = Open3.capture2(
-      "bash", "-lc", "module -t avail #{nextflow_module_name} 2>&1 || true"
-    )
-
-    nextflow_versions = module_avail_output.lines.filter_map do |line|
-      normalized = line.strip.sub(/\s+\(.*\)\z/, "")
-      match = normalized.match(/\A#{Regexp.escape(nextflow_module_name)}\/(.+)\z/)
-      match && match[1]
-    end.uniq.sort_by { |version| nextflow_version_sort_key(version) }.reverse
-  rescue StandardError
-    nextflow_versions = []
-  end
-end
-%>
+<% nextflow_module_name = "__NF2OOD_MODULE_NAME__".to_s.strip %>
 ---
 cluster: "__NF2OOD_CLUSTER__"
 form_header: |
@@ -55,20 +24,14 @@ attributes:
     unchecked_value: 0
     help: Send an email notification when the Open OnDemand launch job starts.
 
-<% if !nextflow_module_name.empty? && nextflow_versions.any? %>
+<% if !nextflow_module_name.empty? %>
   nextflow_version:
     label: Nextflow version
     widget: select
     options:
-<% nextflow_versions.each do |version| %>
-      - ["<%= version %>", "<%= version %>"]
-<% end %>
-    help: Use an older Nextflow version when running previous nf-core pipeline releases.
-<% elsif !nextflow_module_name.empty? %>
-  nextflow_version:
-    label: Nextflow version
-    widget: text_field
-    required: false
+      - ["26.04.3", "26.04.3"]
+      - ["25.10.3", "25.10.3"]
+      - ["25.04.0", "25.04.0"]
     help: Use an older Nextflow version when running previous nf-core pipeline releases.
 <% end %>
 
