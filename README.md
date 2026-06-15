@@ -212,7 +212,6 @@ Optional flags:
 
 - `-i, --input PATH`: directory containing nf-core pipeline directories.
   Defaults to `$NF2OOD_PIPELINE_ROOT` when unset.
-- `-m, --image-map /path/to/pipeline2image.tsv`: override the default pipeline image map
 - `-s, --subcategory-map /path/to/pipeline2subcategory.tsv`: override the default
   pipeline-to-subcategory map
 - `-p, --pipeline NAME`: only process pipelines matching `NAME` (accepts
@@ -283,8 +282,6 @@ Each generated app directory includes:
 
 ## Current generated behavior
 
-- the form header can show a pipeline image, with `max-width` and `max-height`
-  both set to `600px`
 - the partition field comes from:
   `<%= File.read(NF2OOD_PARTITION_YML).indent(2) %>`
 - the runtime script can load both a workflow module and a container module
@@ -295,15 +292,6 @@ Each generated app directory includes:
 - generated checkbox `data-hide-...-when-un-checked` behavior requires Open
   OnDemand 3.1 or newer
 
-## Image mapping
-
-By default, `nf2ood` uses [`pipeline2image.tsv`](./pipeline2image.tsv)
-when it exists. That file maps pipeline names to header image URLs.
-
-If the TSV file exists but a pipeline is not listed, no image is rendered for
-that app. If the TSV file does not exist, `nf2ood` falls back to a best-effort
-GitHub raw image URL pattern.
-
 ## Subcategory mapping
 
 By default, `nf2ood` uses
@@ -311,7 +299,7 @@ By default, `nf2ood` uses
 file maps pipeline names to Open OnDemand subcategories (`rnaseq`, `genomics`,
 `singlecell`, etc.) used in each generated `manifest.yml`.
 
-Format is the same as the image map:
+Format is a two-column TSV:
 
 ```text
 <pipeline_name>\t<subcategory>
