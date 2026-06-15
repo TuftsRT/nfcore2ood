@@ -1,4 +1,3 @@
-<% nextflow_module_name = "__NF2OOD_MODULE_NAME__".to_s.strip %>
 ---
 cluster: "__NF2OOD_CLUSTER__"
 form_header: |
@@ -24,7 +23,6 @@ attributes:
     unchecked_value: 0
     help: Send an email notification when the Open OnDemand launch job starts.
 
-<% if !nextflow_module_name.empty? %>
   nextflow_version:
     label: Nextflow version
     widget: select
@@ -33,7 +31,6 @@ attributes:
       - ["25.10.3", "25.10.3"]
       - ["25.04.0", "25.04.0"]
     help: Use an older Nextflow version when running previous nf-core pipeline releases.
-<% end %>
 
 <%= File.read("__NF2OOD_PARTITION_YML__").indent(2) %>
 
