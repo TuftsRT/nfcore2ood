@@ -23,14 +23,7 @@ attributes:
     unchecked_value: 0
     help: Send an email notification when the Open OnDemand launch job starts.
 
-  nextflow_version:
-    label: Nextflow version
-    widget: select
-    options:
-      - ["26.04.3", "26.04.3"]
-      - ["25.10.3", "25.10.3"]
-      - ["25.04.0", "25.04.0"]
-    help: Use an older Nextflow version when running previous nf-core pipeline releases.
+__NEXTFLOW_VERSION_FIELD__
 
 <%= File.read("__NF2OOD_PARTITION_YML__").indent(2) %>
 
