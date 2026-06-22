@@ -7,7 +7,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly NF2OOD_VERSION="1.2.0"
+readonly NF2OOD_VERSION="1.3.0"
 
 log() {
   printf '[%s] %s\n' "$SCRIPT_NAME" "$*"

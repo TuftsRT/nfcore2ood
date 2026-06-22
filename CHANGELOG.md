@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
+## [1.3.0] - 2026-06-22
+
+This release simplifies generated Open OnDemand forms and makes Nextflow
+version choices static at generation time rather than hardcoded in the
+template.
+
+### Added
+
+- `nf2ood` now runs `module avail` during app generation and bakes the
+  discovered Nextflow module versions directly into each generated
+  `form.yml.erb`.
+
+### Changed
+
+- Generated forms no longer include header images in `form_header`.
+- The base form template now uses a placeholder for the `Nextflow version`
+  field, which is filled during generation instead of being maintained as a
+  fixed list in the template.
+
 ## [1.2.0] - 2026-06-09
 
 This release adds a user-selectable Nextflow version control to generated
@@ -153,7 +172,8 @@ apps from locally downloaded nf-core pipelines, including the download
 step (`download_nfcore_pipeline.sh`) and the schema-to-form converter
 (`json2ood.py`). No explicit version tag; see git history for details.
 
-[Unreleased]: https://github.com/TuftsRT/nfcore2ood/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/TuftsRT/nfcore2ood/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/TuftsRT/nfcore2ood/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/TuftsRT/nfcore2ood/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/TuftsRT/nfcore2ood/compare/5d20ce7...v1.1.0
 [1.0.0]: https://github.com/TuftsRT/nfcore2ood/tree/5d20ce7
