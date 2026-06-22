@@ -7,7 +7,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly NF2OOD_VERSION="1.2.0"
+readonly NF2OOD_VERSION="1.3.0"
 
 log() {
   printf '[%s] %s\n' "$SCRIPT_NAME" "$*"
@@ -26,7 +26,7 @@ usage() {
   print_version
   printf '\n'
   cat <<'EOF'
-Usage: nf2ood --output OUTPUT_DIR [--input INPUT_DIR] [--image-map TSV]
+Usage: nf2ood --output OUTPUT_DIR [--input INPUT_DIR]
               [--subcategory-map TSV] [--pipeline NAME] [--version VER]
               [--force] [--dry-run]
 
@@ -40,9 +40,6 @@ Optional arguments:
                          Defaults to ${NF2OOD_PIPELINE_ROOT} when unset, since
                          that is normally where download_nfcore_pipeline.sh
                          installs pipelines for this site.
-  -m, --image-map        TSV mapping of pipeline name to image URL
-                         Format: <pipeline_name>\t<image_url>
-                         Default: ./pipeline2image.tsv when present
   -s, --subcategory-map  TSV mapping of pipeline name to OOD subcategory
                          Format: <pipeline_name>\t<subcategory>
                          Default: ./pipeline2subcategory.tsv when present
@@ -201,41 +198,6 @@ locate_schema() {
   return 1
 }
 
-resolve_pipeline_image_url() {
-  local image_map_tsv=$1
-  local pipeline_name=$2
-  local pipeline_version=$3
-  local pipeline_slug="${pipeline_name#nf-core-}"
-  local normalized_slug
-  normalized_slug="$(printf '%s' "$pipeline_slug" | tr '[:upper:]' '[:lower:]')"
-
-  if [[ -n "$image_map_tsv" && -f "$image_map_tsv" ]]; then
-    local row_key row_url normalized_key
-    while IFS=$'\t' read -r row_key row_url _; do
-      row_key=${row_key//$'\r'/}
-      row_url=${row_url//$'\r'/}
-
-      [[ -z "${row_key//[[:space:]]/}" ]] && continue
-      [[ "${row_key:0:1}" == "#" ]] && continue
-
-      normalized_key="$(printf '%s' "$row_key" | tr '[:upper:]' '[:lower:]')"
-      [[ "$normalized_key" == "pipeline" || "$normalized_key" == "pipeline_name" ]] && continue
-      normalized_key="${normalized_key#nf-core-}"
-
-      if [[ "$normalized_key" == "$normalized_slug" ]]; then
-        printf '%s\n' "$row_url"
-        return 0
-      fi
-    done < "$image_map_tsv"
-
-    printf '\n'
-    return 0
-  fi
-
-  printf 'https://raw.githubusercontent.com/nf-core/%s/%s/docs/images/%s_metro_map.png\n' \
-    "$pipeline_slug" "$pipeline_version" "$pipeline_slug"
-}
-
 lookup_tsv_value() {
   # Look up a key in a 2-column TSV. Comments (#) and blank lines are skipped,
   # as is a header row matching "pipeline" or "pipeline_name". Key match is
@@ -269,6 +231,78 @@ lookup_tsv_value() {
   return 1
 }
 
+discover_nextflow_versions() {
+  local module_name=$1
+  [[ -n "$module_name" ]] || return 0
+  [[ -n "$(type -t module || true)" ]] || return 0
+
+  local module_output
+  module_output="$(module -t avail "$module_name" 2>&1 || true)"
+
+  MODULE_OUTPUT="$module_output" python3 - "$module_name" <<'PY'
+import os
+import re
+import sys
+
+module_name = sys.argv[1]
+raw_output = os.environ.get("MODULE_OUTPUT", "")
+seen = set()
+versions = []
+
+for raw_line in raw_output.splitlines():
+    line = raw_line.split("(", 1)[0].strip()
+    match = re.match(rf"^{re.escape(module_name)}/(.+)$", line)
+    if not match:
+        continue
+    version = match.group(1).strip()
+    if not version or version in seen:
+        continue
+    seen.add(version)
+    versions.append(version)
+
+def version_key(value: str):
+    parts = re.findall(r"\d+|[A-Za-z]+", value)
+    key = []
+    for part in parts:
+        if part.isdigit():
+            key.append((0, int(part)))
+        else:
+            key.append((1, part.lower()))
+    return key
+
+for version in sorted(versions, key=version_key, reverse=True):
+    print(version)
+PY
+}
+
+render_nextflow_version_field() {
+  local module_name=$1
+  local -a versions=()
+  mapfile -t versions < <(discover_nextflow_versions "$module_name")
+
+  if (( ${#versions[@]} > 0 )); then
+    printf '%s\n' \
+      '  nextflow_version:' \
+      '    label: Nextflow version' \
+      '    widget: select' \
+      '    options:'
+    local version
+    for version in "${versions[@]}"; do
+      printf '      - ["%s", "%s"]\n' "$version" "$version"
+    done
+    printf '%s\n' \
+      '    help: Use an older Nextflow version when running previous nf-core pipeline releases.'
+    return 0
+  fi
+
+  printf '%s\n' \
+    '  nextflow_version:' \
+    '    label: Nextflow version' \
+    '    widget: text_field' \
+    '    required: false' \
+    '    help: Use an older Nextflow version when running previous nf-core pipeline releases.'
+}
+
 determine_subcategory() {
   local pipeline_name=$1
   local subcategory_map_tsv=${SUBCATEGORY_MAP_TSV:-}
@@ -291,17 +325,15 @@ customize_generated_app() {
   local app_dir=$1
   local pipeline_name=$2
   local pipeline_version=$3
-  local image_map_tsv=$4
 
   local pipeline_slug="${pipeline_name#nf-core-}"
-  local app_slug version_path image_url subcategory
+  local app_slug version_path subcategory
   local rendered_cluster rendered_default_directory rendered_module_name
   local rendered_pipeline_root rendered_singularity_cache rendered_slurm_profile
   local rendered_container_module rendered_partition_partial rendered_env_file
 
   app_slug="$(basename "$app_dir")"
   version_path="${pipeline_version}/${pipeline_version//./_}"
-  image_url="$(resolve_pipeline_image_url "$image_map_tsv" "$pipeline_name" "$pipeline_version")"
   subcategory="$(determine_subcategory "$pipeline_name")"
 
   # Required (validated up front by validate_environment).
@@ -326,6 +358,8 @@ customize_generated_app() {
   # value here propagates correctly.
   rendered_module_name="${NF2OOD_MODULE_NAME-nextflow}"
   rendered_container_module="${NF2OOD_CONTAINER_MODULE-singularity}"
+  local rendered_nextflow_version_field
+  rendered_nextflow_version_field="$(render_nextflow_version_field "$rendered_module_name")"
 
   # Build the --set TOKEN=VALUE arglist once and apply all substitutions in a
   # single Python pass over the small set of files in the app dir.
@@ -343,6 +377,7 @@ customize_generated_app() {
     --set "__NF2OOD_DEFAULT_DIRECTORY__=${rendered_default_directory}"
     --set "__NF2OOD_PARTITION_YML__=${rendered_partition_partial}"
     --set "__NF2OOD_MODULE_NAME__=${rendered_module_name}"
+    --set "__NEXTFLOW_VERSION_FIELD__=${rendered_nextflow_version_field}"
     --set "__NF2OOD_CONTAINER_MODULE__=${rendered_container_module}"
     --set "__NF2OOD_PIPELINE_ROOT__=${rendered_pipeline_root}"
     --set "__NF2OOD_SINGULARITY_CACHEDIR__=${rendered_singularity_cache}"
@@ -350,21 +385,14 @@ customize_generated_app() {
     --set "__NF2OOD_ENV_FILE__=${rendered_env_file}"
   )
 
-  if [[ -n "$image_url" ]]; then
-    customize_args+=(--set "__BANNER_IMAGE_URL__=${image_url}")
-  else
-    customize_args+=(--remove-banner)
-  fi
-
   python3 "$REPO_ROOT/customize_app.py" "$app_dir" "${customize_args[@]}"
 }
 
 generate_app() {
   local input_dir=$1
   local output_dir=$2
-  local image_map_tsv=$3
-  local pipeline_name=$4
-  local pipeline_version=$5
+  local pipeline_name=$3
+  local pipeline_version=$4
   local schema_path app_dir rendered_version base_form base_params generated_form params_template
 
   rendered_version="${pipeline_version//./-}"
@@ -415,7 +443,7 @@ generate_app() {
 
   rm -f "$base_form" "$base_params"
 
-  if ! customize_generated_app "$app_dir" "$pipeline_name" "$pipeline_version" "$image_map_tsv"; then
+  if ! customize_generated_app "$app_dir" "$pipeline_name" "$pipeline_version"; then
     log "WARNING: customize step failed for ${pipeline_name} ${pipeline_version}; skipping."
     rm -rf "$app_dir"
     return 1
@@ -425,7 +453,6 @@ generate_app() {
 parse_args() {
   INPUT_DIR=""
   OUTPUT_DIR=""
-  IMAGE_MAP_TSV=""
   SUBCATEGORY_MAP_TSV=""
   FORCE_OVERWRITE="false"
   DRY_RUN="false"
@@ -442,11 +469,6 @@ parse_args() {
       -o|--output)
         [[ $# -ge 2 ]] || die "Missing value for $1"
         OUTPUT_DIR=$2
-        shift 2
-        ;;
-      -m|--image-map)
-        [[ $# -ge 2 ]] || die "Missing value for $1"
-        IMAGE_MAP_TSV=$2
         shift 2
         ;;
       -s|--subcategory-map)
@@ -512,9 +534,6 @@ main() {
   REPO_ROOT="$(repo_root)"
   TEMPLATE_ROOT="${REPO_ROOT}/nfcore_ood_template"
 
-  if [[ -z "$IMAGE_MAP_TSV" ]]; then
-    IMAGE_MAP_TSV="${REPO_ROOT}/pipeline2image.tsv"
-  fi
   if [[ -z "$SUBCATEGORY_MAP_TSV" ]]; then
     SUBCATEGORY_MAP_TSV="${REPO_ROOT}/pipeline2subcategory.tsv"
   fi
@@ -569,7 +588,7 @@ main() {
 
       # Used as an `if` test so set -e does not abort the whole loop on a
       # per-app failure; the failure is recorded and reported in the summary.
-      if generate_app "$INPUT_DIR" "$OUTPUT_DIR" "$IMAGE_MAP_TSV" "$pipeline_name" "$pipeline_version"; then
+      if generate_app "$INPUT_DIR" "$OUTPUT_DIR" "$pipeline_name" "$pipeline_version"; then
         GENERATED_APPS+=("${pipeline_name} ${pipeline_version}")
       else
         FAILED_APPS+=("${pipeline_name} ${pipeline_version}")
