@@ -30,9 +30,14 @@ to_number = lambda do |value|
   end
 end
 
-false_if_disabled = lambda do |enabled, value|
-  resolved = to_bool.call(enabled)
-  resolved == false ? false : value
+to_number_or_bool = lambda do |value|
+  numeric = to_number.call(value)
+  return numeric unless numeric == value
+
+  boolean = to_bool.call(value)
+  return boolean unless boolean == value
+
+  value
 end
 
 params = {
