@@ -62,6 +62,7 @@ class FieldSpec:
     required: bool
     default_value: SchemaValue = None
     enum_values: tuple[SchemaValue, ...] = ()
+    union_enabled_by_default: bool = False
 
 
 @dataclass(frozen=True)
@@ -146,11 +147,81 @@ def normalize_key(name: str) -> str:
     return normalized or "field"
 
 
-def infer_widget_type(property_schema: dict[str, Any]) -> str | None:
-    property_type = property_schema.get("type", "")
+def normalize_schema_type(property_type: Any) -> str:
     if isinstance(property_type, list):
         property_type = next((item for item in property_type if item != "null"), "")
-    property_type = str(property_type).strip().lower()
+    return str(property_type).strip().lower()
+
+
+def detect_scalar_or_false_union(
+    property_schema: dict[str, Any],
+) -> tuple[str, SchemaValue, bool] | None:
+    property_types = property_schema.get("type", "")
+    if not isinstance(property_types, list):
+        return None
+
+    normalized_types = {
+        str(item).strip().lower()
+        for item in property_types
+        if str(item).strip().lower() != "null"
+    }
+    scalar_type = next(
+        (item for item in ("integer", "number", "string") if item in normalized_types),
+        None,
+    )
+    if scalar_type is None or "boolean" not in normalized_types:
+        return None
+
+    any_of = property_schema.get("anyOf")
+    if not isinstance(any_of, list):
+        return None
+
+    scalar_default: SchemaValue = None
+    scalar_format = str(property_schema.get("format", "")).strip().lower()
+    has_false_branch = False
+
+    for branch in any_of:
+        branch_type = normalize_schema_type(branch.get("type", ""))
+        if branch_type == scalar_type:
+            if "default" in branch:
+                scalar_default = branch.get("default")
+            branch_format = str(branch.get("format", "")).strip().lower()
+            if branch_format:
+                scalar_format = branch_format
+        elif branch_type == "boolean" and branch.get("const") is False:
+            has_false_branch = True
+
+    if not has_false_branch:
+        return None
+
+    top_default = property_schema.get("default")
+    value_default = scalar_default
+    if scalar_type in {"integer", "number"}:
+        if isinstance(top_default, (int, float)) and not isinstance(top_default, bool):
+            value_default = top_default
+        widget_type = "number_field_or_false"
+    else:
+        if isinstance(top_default, str) and top_default != "":
+            value_default = top_default
+        widget_type = (
+            "path_selector_or_false" if scalar_format in PATH_FORMATS else "text_field_or_false"
+        )
+
+    union_enabled_by_default = False
+    if top_default is False:
+        union_enabled_by_default = False
+    elif value_default not in (None, ""):
+        union_enabled_by_default = True
+
+    return widget_type, value_default, union_enabled_by_default
+
+
+def infer_widget_type(property_schema: dict[str, Any]) -> str | None:
+    union_spec = detect_scalar_or_false_union(property_schema)
+    if union_spec is not None:
+        return union_spec[0]
+
+    property_type = normalize_schema_type(property_schema.get("type", ""))
     property_format = str(property_schema.get("format", "")).strip().lower()
 
     if property_schema.get("enum"):
@@ -182,15 +253,24 @@ def normalize_field(
     if should_skip_property(property_name, property_schema):
         return None
 
+    widget_type = infer_widget_type(property_schema)
+    default_value = property_schema.get("default")
+    union_enabled_by_default = False
+
+    union_spec = detect_scalar_or_false_union(property_schema)
+    if union_spec is not None:
+        widget_type, default_value, union_enabled_by_default = union_spec
+
     return FieldSpec(
         original_name=property_name,
         normalized_name=normalize_key(property_name),
         label=str(property_schema.get("title") or property_name),
         help_text=first_line(property_schema.get("description")),
-        widget_type=infer_widget_type(property_schema),
+        widget_type=widget_type,
         required=property_name in required_fields,
-        default_value=property_schema.get("default"),
+        default_value=default_value,
         enum_values=tuple(property_schema.get("enum", ())),
+        union_enabled_by_default=union_enabled_by_default,
     )
 
 
@@ -225,6 +305,12 @@ def normalize_schema(schema: dict[str, Any]) -> list[GroupSpec]:
     return groups
 
 
+def rendered_field_names(field_spec: FieldSpec) -> list[str]:
+    if field_spec.widget_type and field_spec.widget_type.endswith("_or_false"):
+        return [f"{field_spec.normalized_name}_enabled", field_spec.normalized_name]
+    return [field_spec.normalized_name]
+
+
 def render_group(group: GroupSpec) -> list[str]:
     lines = [
         f"  {group.normalized_name}:",
@@ -235,7 +321,8 @@ def render_group(group: GroupSpec) -> list[str]:
     ]
 
     for field_spec in group.fields:
-        lines.append(f"        hide-{field_spec.normalized_name}-when-un-checked: true")
+        for field_name in rendered_field_names(field_spec):
+            lines.append(f"        hide-{field_name}-when-un-checked: true")
 
     if group.help_text:
         lines.append(f"    help: {yaml_single_quote(group.help_text)}")
@@ -264,60 +351,112 @@ def render_select_options(default_value: Any, enum_values: tuple[Any, ...]) -> l
     return lines
 
 
-def render_field(field_spec: FieldSpec) -> list[str]:
+def render_scalar_field(
+    field_name: str,
+    label: str,
+    widget_type: str | None,
+    required: bool,
+    default_value: SchemaValue,
+    enum_values: tuple[SchemaValue, ...],
+    help_text: str,
+) -> list[str]:
     lines = [
-        f"  {field_spec.normalized_name}:",
-        f"    label: {yaml_single_quote(field_spec.label)}",
+        f"  {field_name}:",
+        f"    label: {yaml_single_quote(label)}",
     ]
 
-    if field_spec.required:
+    if required:
         lines.append("    required: true")
 
-    if field_spec.widget_type == "check_box":
+    if widget_type == "check_box":
         # Render booleans as a two-option select so the OOD form picks up
         # data-hide-...-when-un-checked rules consistently. The default option
         # is listed first so OOD treats it as the initial selection.
         lines.append("    widget: select")
-        is_default_true = field_spec.default_value is True
+        is_default_true = default_value is True
         default_str = "true" if is_default_true else "false"
         other_str = "false" if is_default_true else "true"
         lines.append("    options:")
         lines.append(f"      - ['{default_str}', '{default_str}']")
         lines.append(f"      - ['{other_str}', '{other_str}']")
-        if isinstance(field_spec.default_value, bool):
+        if isinstance(default_value, bool):
             lines.append(f"    value: {default_str}")
-    elif field_spec.widget_type == "text_field":
+    elif widget_type == "text_field":
         lines.append("    widget: text_field")
-        if field_spec.default_value not in (None, ""):
-            lines.append(f"    value: {yaml_single_quote(field_spec.default_value)}")
-    elif field_spec.widget_type == "path_selector":
+        if default_value not in (None, ""):
+            lines.append(f"    value: {yaml_single_quote(default_value)}")
+    elif widget_type == "path_selector":
         lines.append("    widget: path_selector")
-        if field_spec.default_value not in (None, ""):
-            lines.append(f"    value: {yaml_single_quote(field_spec.default_value)}")
-        lines.append('    directory: "<%= ENV.fetch(\'NF2OOD_DEFAULT_DIRECTORY\', ENV.fetch(\'HOME\', \'/\')) %>"')
+        if default_value not in (None, ""):
+            lines.append(f"    value: {yaml_single_quote(default_value)}")
+        lines.append(
+            "    directory: \"<%= ENV.fetch('NF2OOD_DEFAULT_DIRECTORY', ENV.fetch('HOME', '/')) %>\""
+        )
         lines.append("    favorites:")
-        lines.append('      - "<%= ENV.fetch(\'HOME\', \'/\') %>"')
-    elif field_spec.widget_type == "number_field":
+        lines.append("      - \"<%= ENV.fetch('HOME', '/') %>\"")
+    elif widget_type == "number_field":
         lines.append("    widget: number_field")
         # bool is a subclass of int in Python, so an explicit bool check is
         # needed to keep "value: True" / "value: False" from leaking into the
         # YAML when a schema (unusually) types a flag as a number with a
         # boolean default.
         if (
-            isinstance(field_spec.default_value, (int, float))
-            and not isinstance(field_spec.default_value, bool)
+            isinstance(default_value, (int, float))
+            and not isinstance(default_value, bool)
         ):
-            lines.append(f"    value: {field_spec.default_value}")
+            lines.append(f"    value: {default_value}")
         lines.append("    step: 1")
-    elif field_spec.widget_type == "select":
+    elif widget_type == "select":
         lines.append("    widget: select")
-        lines.extend(render_select_options(field_spec.default_value, field_spec.enum_values))
+        lines.extend(render_select_options(default_value, enum_values))
 
-    if field_spec.help_text:
-        lines.append(f"    help: {yaml_single_quote(field_spec.help_text)}")
+    if help_text:
+        lines.append(f"    help: {yaml_single_quote(help_text)}")
 
     lines.append("")
     return lines
+
+
+def render_union_field(field_spec: FieldSpec) -> list[str]:
+    base_widget_type = field_spec.widget_type[: -len("_or_false")]
+    controller_name = f"{field_spec.normalized_name}_enabled"
+    lines = [
+        f"  {controller_name}:",
+        f"    label: {yaml_single_quote(f'Enable {field_spec.label}')}",
+        "    widget: select",
+        "    options:",
+        f"      - ['Disabled', 'false', data-hide-{field_spec.normalized_name}: true]",
+        "      - ['Enabled', 'true']",
+        f"    value: {yaml_single_quote('true' if field_spec.union_enabled_by_default else 'false')}",
+        "",
+    ]
+    lines.extend(
+        render_scalar_field(
+            field_name=field_spec.normalized_name,
+            label=field_spec.label,
+            widget_type=base_widget_type,
+            required=field_spec.required,
+            default_value=field_spec.default_value,
+            enum_values=field_spec.enum_values,
+            help_text=field_spec.help_text,
+        )
+    )
+    return lines
+
+
+def render_field(field_spec: FieldSpec) -> list[str]:
+    if field_spec.widget_type and field_spec.widget_type.endswith("_or_false"):
+        return render_union_field(field_spec)
+
+    return render_scalar_field(
+        field_name=field_spec.normalized_name,
+        label=field_spec.label,
+        widget_type=field_spec.widget_type,
+        required=field_spec.required,
+        default_value=field_spec.default_value,
+        enum_values=field_spec.enum_values,
+        help_text=field_spec.help_text,
+    )
 
 
 def render_form(groups: list[GroupSpec], base_form_content: str) -> str:
@@ -329,7 +468,7 @@ def render_form(groups: list[GroupSpec], base_form_content: str) -> str:
         field_order.append(group.normalized_name)
         for field_spec in group.fields:
             lines.extend(render_field(field_spec))
-            field_order.append(field_spec.normalized_name)
+            field_order.extend(rendered_field_names(field_spec))
 
     lines.append("form:")
     lines.extend(f"  - {field_name}" for field_name in field_order)
@@ -339,6 +478,17 @@ def render_form(groups: list[GroupSpec], base_form_content: str) -> str:
 
 
 def render_params_entry(field_spec: FieldSpec) -> str:
+    if field_spec.widget_type and field_spec.widget_type.endswith("_or_false"):
+        controller_name = f"{field_spec.normalized_name}_enabled"
+        if field_spec.widget_type.startswith("number_field"):
+            value_expression = f"to_number.call(context.{field_spec.normalized_name})"
+        else:
+            value_expression = f"context.{field_spec.normalized_name}"
+        return (
+            f'    "{field_spec.original_name}": '
+            f"false_if_disabled.call(context.{controller_name}, {value_expression})"
+        )
+
     if field_spec.widget_type == "check_box":
         value_expression = f"to_bool.call(context.{field_spec.normalized_name})"
     elif field_spec.widget_type == "number_field":

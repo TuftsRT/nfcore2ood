@@ -30,6 +30,11 @@ to_number = lambda do |value|
   end
 end
 
+false_if_disabled = lambda do |enabled, value|
+  resolved = to_bool.call(enabled)
+  resolved == false ? false : value
+end
+
 params = {
 __NF_PARAMS_ENTRIES__
 }
