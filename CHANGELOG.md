@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
+## [1.4.0] - 2026-06-25
+
+This release simplifies how generated Open OnDemand apps handle nf-core
+schema fields that allow multiple scalar types such as integer-or-boolean.
+
+### Changed
+
+- Multi-type scalar schema fields now generate as a single text input
+  instead of an extra enable/disable controller field.
+- Mixed-type values are converted in a predictable order when
+  `nf-params.json.erb` is rendered: number first, then boolean, otherwise
+  left as a string.
+- For mixed-type fields with a boolean branch default or `const`, the
+  generated form now uses that boolean value as the default text input.
+
 ## [1.3.0] - 2026-06-22
 
 This release simplifies generated Open OnDemand forms and makes Nextflow
@@ -172,7 +187,8 @@ apps from locally downloaded nf-core pipelines, including the download
 step (`download_nfcore_pipeline.sh`) and the schema-to-form converter
 (`json2ood.py`). No explicit version tag; see git history for details.
 
-[Unreleased]: https://github.com/TuftsRT/nfcore2ood/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/TuftsRT/nfcore2ood/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/TuftsRT/nfcore2ood/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/TuftsRT/nfcore2ood/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/TuftsRT/nfcore2ood/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/TuftsRT/nfcore2ood/compare/5d20ce7...v1.1.0

@@ -30,6 +30,16 @@ to_number = lambda do |value|
   end
 end
 
+to_number_or_bool = lambda do |value|
+  numeric = to_number.call(value)
+  return numeric unless numeric == value
+
+  boolean = to_bool.call(value)
+  return boolean unless boolean == value
+
+  value
+end
+
 params = {
 __NF_PARAMS_ENTRIES__
 }
