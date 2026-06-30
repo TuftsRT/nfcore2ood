@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/bc7234ff-5b9c-42a0-b616-44f5f6d57eaa
 
 - discovers nf-core pipelines and versions under an input directory
 - locates `nextflow_schema.json` for each pipeline version
-- converts schema fields into `form.yml.erb` and `template/nf-params.json.erb`
+- converts schema fields into `form.yml` and `template/nf-params.json.erb`
 - creates one Open OnDemand app directory per pipeline version
 - writes a per-app `README.md` for deployment review
 
@@ -141,7 +141,9 @@ Variables are grouped by how `nf2ood` treats them when they are unset.
 
 - `NF2OOD_PIPELINE_ROOT`: root directory containing installed nf-core pipelines
 - `NF2OOD_SINGULARITY_CACHEDIR`: Singularity or Apptainer cache path
-- `NF2OOD_PARTITION_YML`: path to the partition partial used in the form
+- `NF2OOD_PARTITION_YML`: path to the partition YAML snippet baked into generated `form.yml`.
+  If this is unset, `nf2ood` falls back to `./cpu_partition.yml` in the current
+  working directory.
 
 **SOFT (warn)** — `nf2ood` falls back to a placeholder and logs a one-shot
 warning:
@@ -151,7 +153,7 @@ warning:
 
 **SOFT** — `nf2ood` silently uses a safe cross-site default when unset:
 
-- `NF2OOD_CLUSTER` (default `cluster`): Open OnDemand cluster id written into `form.yml.erb`
+- `NF2OOD_CLUSTER` (default `cluster`): Open OnDemand cluster id written into `form.yml`
 - `NF2OOD_DEFAULT_DIRECTORY` (default `$HOME`): default working directory shown in the app form
 - `NF2OOD_MODULE_NAME` (default `nextflow`, `""` to skip): name of the Nextflow environment module the generated job wrapper should `module load`. Set explicitly to `""` if your site installs Nextflow system-wide and there is no module to load.
 - `NF2OOD_CONTAINER_MODULE` (default `singularity`, `""` to skip): name of the container-engine environment module to `module load` at job runtime. Set explicitly to `""` for sites where Singularity / Apptainer is installed as an OS package rather than as an environment module. The runtime wrapper also auto-skips module loading entirely on compute nodes that have no `module` function at all.
@@ -270,7 +272,7 @@ Schema discovery currently checks these locations in order:
 Each generated app directory includes:
 
 - `manifest.yml`
-- `form.yml.erb`
+- `form.yml`
 - `form.js`
 - `submit.yml.erb`
 - `view.html.erb`
@@ -282,8 +284,9 @@ Each generated app directory includes:
 
 ## Current generated behavior
 
-- the partition field comes from:
-  `<%= File.read(NF2OOD_PARTITION_YML).indent(2) %>`
+- the partition field is baked into `form.yml` from `NF2OOD_PARTITION_YML`, or
+  from `./cpu_partition.yml` when that file exists in the current working directory
+- the default working directory is baked into `form.yml` from `NF2OOD_DEFAULT_DIRECTORY`
 - the runtime script can load both a workflow module and a container module
 - local executor mode generates a small `custom.config`
 - Slurm mode runs `nextflow` with the configured `NF2OOD_SLURM_PROFILE`

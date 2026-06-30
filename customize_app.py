@@ -27,7 +27,7 @@ from pathlib import Path
 # Listed explicitly (rather than walking the tree) so binary assets such as
 # icon.png are never opened as text.
 SUBSTITUTION_TARGETS = (
-    "form.yml.erb",
+    "form.yml",
     "manifest.yml",
     "submit.yml.erb",
     "template/script.sh.erb",
@@ -72,8 +72,9 @@ def apply_substitutions(path: Path, subs: dict[str, str]) -> None:
 
     # YAML expects lowercase booleans. json2ood.py emits them lowercase, but
     # certain code paths can still produce Python-style True/False; normalise
-    # only in form.yml.erb to keep the rest of the file content untouched.
-    if path.name == "form.yml.erb":
+    # only in the static form file to keep the rest of the file content
+    # untouched.
+    if path.name == "form.yml":
         content = content.replace("value: True", "value: true")
         content = content.replace("value: False", "value: false")
 

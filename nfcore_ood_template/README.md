@@ -16,7 +16,7 @@ interface and launches the pipeline with Nextflow on the target HPC system.
 ## Included files
 
 - `manifest.yml`: Open OnDemand metadata shown in the app catalog
-- `form.yml.erb`: submission form definition built from the pipeline schema
+- `form.yml`: submission form definition built from the pipeline schema
 - `submit.yml.erb`: job submission settings
 - `template/script.sh.erb`: batch job wrapper that runs Nextflow
 - `template/nf-params.json.erb`: rendered Nextflow parameter file
@@ -26,7 +26,7 @@ interface and launches the pipeline with Nextflow on the target HPC system.
 This generated app is intended to be a strong starting point, not a drop-in
 portable package. Review these areas before publishing or deploying it:
 
-1. Confirm the cluster identifier in `form.yml.erb` matches your Open OnDemand
+1. Confirm the cluster identifier in `form.yml` matches your Open OnDemand
    cluster configuration.
 2. Confirm the scheduler settings in `submit.yml.erb` match your site policies.
 3. Confirm the runtime assumptions in `template/script.sh.erb`, especially the

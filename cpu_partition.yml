@@ -1,0 +1,9 @@
+partition:
+  widget: "select"
+  label: "Partition"
+  help: >-
+    Jobs submitted to the 'preempt' partition may be automatically killed to allow
+    higher-priority jobs to run. Select a specific lab partition if you belong to
+    that group.
+  options:
+    - ["batch", "batch"]

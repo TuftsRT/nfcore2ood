@@ -89,7 +89,7 @@ validate_environment() {
   # config_value() in customize_generated_app.
   require_env NF2OOD_PIPELINE_ROOT >/dev/null
   require_env NF2OOD_SINGULARITY_CACHEDIR >/dev/null
-  require_env NF2OOD_PARTITION_YML >/dev/null
+  resolve_partition_yml >/dev/null
 
   if [[ -z "${NF2OOD_SLURM_PROFILE:-}" ]]; then
     log "WARNING: NF2OOD_SLURM_PROFILE is not set. Falling back to 'default'. Generated apps will not use a site-specific Nextflow profile."
@@ -98,6 +98,24 @@ validate_environment() {
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
+}
+
+resolve_partition_yml() {
+  local configured_path="${NF2OOD_PARTITION_YML:-}"
+  local fallback_path="${PWD}/cpu_partition.yml"
+
+  if [[ -n "$configured_path" ]]; then
+    [[ -f "$configured_path" ]] || die "NF2OOD_PARTITION_YML points to a missing file: $configured_path"
+    printf '%s\n' "$configured_path"
+    return 0
+  fi
+
+  if [[ -f "$fallback_path" ]]; then
+    printf '%s\n' "$fallback_path"
+    return 0
+  fi
+
+  die "Partition YAML not found. Set NF2OOD_PARTITION_YML or place cpu_partition.yml in the current working directory."
 }
 
 repo_root() {
@@ -303,6 +321,23 @@ render_nextflow_version_field() {
     '    help: Use an older Nextflow version when running previous nf-core pipeline releases.'
 }
 
+render_partition_block() {
+  local partition_yml=$1
+
+  python3 - "$partition_yml" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+content = path.read_text(encoding="utf-8").rstrip("\n")
+if not content:
+    raise SystemExit("Partition YAML file is empty.")
+
+for line in content.splitlines():
+    print(f"  {line}")
+PY
+}
+
 determine_subcategory() {
   local pipeline_name=$1
   local subcategory_map_tsv=${SUBCATEGORY_MAP_TSV:-}
@@ -330,7 +365,7 @@ customize_generated_app() {
   local app_slug version_path subcategory
   local rendered_cluster rendered_default_directory rendered_module_name
   local rendered_pipeline_root rendered_singularity_cache rendered_slurm_profile
-  local rendered_container_module rendered_partition_partial rendered_env_file
+  local rendered_container_module rendered_partition_yml rendered_partition_block rendered_env_file
 
   app_slug="$(basename "$app_dir")"
   version_path="${pipeline_version}/${pipeline_version//./_}"
@@ -339,7 +374,8 @@ customize_generated_app() {
   # Required (validated up front by validate_environment).
   rendered_pipeline_root="$(require_env NF2OOD_PIPELINE_ROOT)"
   rendered_singularity_cache="$(require_env NF2OOD_SINGULARITY_CACHEDIR)"
-  rendered_partition_partial="$(require_env NF2OOD_PARTITION_YML)"
+  rendered_partition_yml="$(resolve_partition_yml)"
+  rendered_partition_block="$(render_partition_block "$rendered_partition_yml")"
 
   # Soft default; a warning is emitted once in validate_environment when unset.
   rendered_slurm_profile="${NF2OOD_SLURM_PROFILE:-default}"
@@ -375,7 +411,7 @@ customize_generated_app() {
     --set "__SUBCATEGORY__=${subcategory}"
     --set "__NF2OOD_CLUSTER__=${rendered_cluster}"
     --set "__NF2OOD_DEFAULT_DIRECTORY__=${rendered_default_directory}"
-    --set "__NF2OOD_PARTITION_YML__=${rendered_partition_partial}"
+    --set "__NF2OOD_PARTITION_BLOCK__=${rendered_partition_block}"
     --set "__NF2OOD_MODULE_NAME__=${rendered_module_name}"
     --set "__NEXTFLOW_VERSION_FIELD__=${rendered_nextflow_version_field}"
     --set "__NF2OOD_CONTAINER_MODULE__=${rendered_container_module}"
@@ -412,7 +448,7 @@ generate_app() {
 
   base_form="${app_dir}/form.template.erb"
   base_params="${app_dir}/nf-params.template.erb"
-  generated_form="${app_dir}/form.yml.erb"
+  generated_form="${app_dir}/form.yml"
   params_template="${app_dir}/template/nf-params.json.erb"
 
   log "Generating ${pipeline_name} ${pipeline_version}"

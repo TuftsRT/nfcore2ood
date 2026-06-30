@@ -375,11 +375,9 @@ def render_scalar_field(
         lines.append("    widget: path_selector")
         if default_value not in (None, ""):
             lines.append(f"    value: {yaml_single_quote(default_value)}")
-        lines.append(
-            "    directory: \"<%= ENV.fetch('NF2OOD_DEFAULT_DIRECTORY', ENV.fetch('HOME', '/')) %>\""
-        )
+        lines.append("    directory: '__NF2OOD_DEFAULT_DIRECTORY__'")
         lines.append("    favorites:")
-        lines.append("      - \"<%= ENV.fetch('HOME', '/') %>\"")
+        lines.append("      - '__NF2OOD_DEFAULT_DIRECTORY__'")
     elif widget_type == "number_field":
         lines.append("    widget: number_field")
         # bool is a subclass of int in Python, so an explicit bool check is
