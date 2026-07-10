@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
+## [1.5.0] - 2026-07-10
+
+This release adds an opt-in mode to deduplicate the files that are identical
+across every generated app, reducing duplication and making shared files
+editable in one place.
+
+### Added
+
+- `-l, --symlink-shared` flag. When set, files that are byte-identical across
+  all apps (`form.js`, `view.html.erb`, `LICENSE.txt`, `CHANGELOG.md`,
+  `template/before.sh.erb`) are written once to `OUTPUT_DIR/.nf-core-shared`
+  and each app receives a relative symlink into that directory instead of a
+  real copy.
+- `NF2OOD_SHARED_DIR_NAME` environment variable to override the shared
+  directory name (default `.nf-core-shared`).
+
+### Notes
+
+- Default behavior is unchanged: without `--symlink-shared`, every app still
+  gets real copies of all files.
+- The shared directory is a sibling of the app directories and must be deployed
+  alongside them; symlinks are relative so the tree stays portable.
+
 ## [1.4.0] - 2026-06-25
 
 This release simplifies how generated Open OnDemand apps handle nf-core

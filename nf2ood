@@ -7,7 +7,26 @@ set -euo pipefail
 IFS=$'\n\t'
 
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly NF2OOD_VERSION="1.4.0"
+readonly NF2OOD_VERSION="1.5.0"
+
+# Files that are byte-identical across every generated app (no per-app tokens
+# and not produced from the pipeline schema). In --symlink-shared mode these
+# are stored once in a shared directory and linked into each app instead of
+# being copied. Paths are relative to an app directory. The list is curated on
+# purpose: only add a file here once you are sure it never varies per app.
+readonly -a SHARED_STATIC_FILES=(
+  "form.js"
+  "view.html.erb"
+  "LICENSE.txt"
+  "CHANGELOG.md"
+  "template/before.sh.erb"
+)
+
+# Name of the shared-assets directory created inside OUTPUT_DIR when
+# --symlink-shared is used. Dot-prefixed and without a manifest.yml so the OOD
+# dashboard never treats it as an app. Overridable for sites that prefer a
+# different convention.
+readonly SHARED_DIR_NAME="${NF2OOD_SHARED_DIR_NAME:-.nf-core-shared}"
 
 log() {
   printf '[%s] %s\n' "$SCRIPT_NAME" "$*"
@@ -28,7 +47,7 @@ usage() {
   cat <<'EOF'
 Usage: nf2ood --output OUTPUT_DIR [--input INPUT_DIR]
               [--subcategory-map TSV] [--pipeline NAME] [--version VER]
-              [--force] [--dry-run]
+              [--symlink-shared] [--force] [--dry-run]
 
 Generate Open OnDemand apps from nf-core pipeline downloads.
 
@@ -48,6 +67,11 @@ Optional arguments:
                          the slug (e.g. rnaseq). Repeatable.
   -v, --version VER      Only process versions matching VER (e.g. 3.18.0).
                          Repeatable.
+  -l, --symlink-shared   Deduplicate files that are identical across every app.
+                         Store them once in OUTPUT_DIR/.nf-core-shared and give
+                         each app relative symlinks into it instead of real
+                         copies. The shared directory must be deployed alongside
+                         the apps (it is a sibling of every app directory).
   -f, --force            Delete the existing output directory before generating
                          apps. Ignored when --pipeline or --version is given so
                          unrelated apps in the output directory are preserved.
@@ -388,6 +412,55 @@ customize_generated_app() {
   python3 "$REPO_ROOT/customize_app.py" "$app_dir" "${customize_args[@]}"
 }
 
+populate_shared_dir() {
+  # Copy the static, app-invariant files into OUTPUT_DIR/.nf-core-shared once.
+  # Sourced from the template (these files carry no tokens and are not produced
+  # from the schema, so the template copy is authoritative). Idempotent: safe to
+  # re-run on an existing output directory during filtered regeneration.
+  local output_dir=$1
+  local shared_dir="${output_dir}/${SHARED_DIR_NAME}"
+
+  local rel src dst
+  for rel in "${SHARED_STATIC_FILES[@]}"; do
+    src="${TEMPLATE_ROOT}/${rel}"
+    dst="${shared_dir}/${rel}"
+    if [[ ! -f "$src" ]]; then
+      log "WARNING: shared static file missing from template, skipping: ${rel}"
+      continue
+    fi
+    mkdir -p "$(dirname "$dst")"
+    cp -p "$src" "$dst"
+  done
+  log "Shared assets written to ${shared_dir}"
+}
+
+link_shared_files_into_app() {
+  # Replace the real copies of the shared static files in an app with relative
+  # symlinks into OUTPUT_DIR/.nf-core-shared. Relative targets keep the app tree
+  # self-contained and portable as long as the shared directory is deployed as a
+  # sibling of the app directories.
+  local app_dir=$1
+
+  local rel link prefix slashes i target
+  for rel in "${SHARED_STATIC_FILES[@]}"; do
+    link="${app_dir}/${rel}"
+    # Skip files the template did not provide for this app.
+    [[ -e "$link" || -L "$link" ]] || continue
+
+    # One ".." to leave the app directory, plus one more per nested segment in
+    # rel (e.g. template/before.sh.erb needs an extra level).
+    prefix="../"
+    slashes="${rel//[^\/]/}"
+    for (( i=0; i<${#slashes}; i++ )); do
+      prefix+="../"
+    done
+    target="${prefix}${SHARED_DIR_NAME}/${rel}"
+
+    rm -rf "$link"
+    ln -s "$target" "$link"
+  done
+}
+
 generate_app() {
   local input_dir=$1
   local output_dir=$2
@@ -407,6 +480,10 @@ generate_app() {
     log "[DRY-RUN] Would generate ${pipeline_name} ${pipeline_version}"
     log "[DRY-RUN]   schema: ${schema_path}"
     log "[DRY-RUN]   app:    ${app_dir}"
+    if [[ "${SYMLINK_SHARED:-false}" == "true" ]]; then
+      # Join with spaces regardless of the script-wide IFS (newline/tab).
+      log "[DRY-RUN]   shared: symlink $(IFS=' '; echo "${SHARED_STATIC_FILES[*]}") -> ${SHARED_DIR_NAME}"
+    fi
     return 0
   fi
 
@@ -448,6 +525,10 @@ generate_app() {
     rm -rf "$app_dir"
     return 1
   fi
+
+  if [[ "${SYMLINK_SHARED:-false}" == "true" ]]; then
+    link_shared_files_into_app "$app_dir"
+  fi
 }
 
 parse_args() {
@@ -456,6 +537,7 @@ parse_args() {
   SUBCATEGORY_MAP_TSV=""
   FORCE_OVERWRITE="false"
   DRY_RUN="false"
+  SYMLINK_SHARED="false"
   PIPELINE_FILTER=()
   VERSION_FILTER=()
 
@@ -485,6 +567,10 @@ parse_args() {
         [[ $# -ge 2 ]] || die "Missing value for $1"
         VERSION_FILTER+=("$2")
         shift 2
+        ;;
+      -l|--symlink-shared)
+        SYMLINK_SHARED="true"
+        shift
         ;;
       -f|--force)
         FORCE_OVERWRITE="true"
@@ -556,6 +642,14 @@ main() {
     mkdir -p "$OUTPUT_DIR"
   else
     prepare_output_dir "$OUTPUT_DIR" "$FORCE_OVERWRITE"
+  fi
+
+  if [[ "$SYMLINK_SHARED" == "true" ]]; then
+    if [[ "$DRY_RUN" == "true" ]]; then
+      log "[DRY-RUN] Would write shared assets to ${OUTPUT_DIR}/${SHARED_DIR_NAME}"
+    else
+      populate_shared_dir "$OUTPUT_DIR"
+    fi
   fi
 
   # Result accumulators; printed by print_summary at the end.

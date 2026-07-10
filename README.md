@@ -218,6 +218,8 @@ Optional flags:
   `nf-core-rnaseq` or just `rnaseq`). Repeatable.
 - `-v, --version VER`: only process versions matching `VER` (e.g. `3.18.0`).
   Repeatable.
+- `-l, --symlink-shared`: deduplicate the files that are byte-identical across
+  every generated app. See [Deduplicating shared files](#deduplicating-shared-files).
 - `-f, --force`: delete the existing output directory before regeneration.
   Ignored when `--pipeline` or `--version` is given so unrelated apps in the
   output directory are preserved.
@@ -238,6 +240,42 @@ Help:
 ```bash
 ./nf2ood --help
 ```
+
+## Deduplicating shared files
+
+Several files are byte-identical in every generated app because they carry no
+per-app tokens and are not derived from the pipeline schema:
+
+- `form.js`
+- `view.html.erb`
+- `LICENSE.txt`
+- `CHANGELOG.md`
+- `template/before.sh.erb`
+
+By default each app gets its own copy. Pass `-l/--symlink-shared` to store these
+once and give every app a **relative symlink** into a shared directory instead:
+
+```bash
+source ./nf2ood.env
+./nf2ood --output /path/to/generated-apps --symlink-shared
+```
+
+This writes the shared copies to `OUTPUT_DIR/.nf-core-shared/` and links each app
+into it, e.g. `nf-core-rnaseq-3-26-0/form.js -> ../.nf-core-shared/form.js`. The
+directory is dot-prefixed and has no `manifest.yml`, so the OOD dashboard never
+lists it as an app. Per-version files (`form.yml.erb`, `manifest.yml`,
+`submit.yml.erb`, `template/script.sh.erb`, `template/nf-params.json.erb`,
+`README.md`) always remain real, app-specific files.
+
+Because the links are relative, the tree stays self-contained: **deploy
+`.nf-core-shared/` alongside the app directories** (it must remain a sibling of
+every app). When you copy the output to `apps/sys`, copy the shared directory
+too and preserve symlinks (`cp -a`, `rsync -a`, `tar`). To edit a shared file
+for all apps, edit it once in `.nf-core-shared/`.
+
+The shared file list is a curated constant (`SHARED_STATIC_FILES`) in `nf2ood`;
+the directory name defaults to `.nf-core-shared` and can be overridden with the
+`NF2OOD_SHARED_DIR_NAME` environment variable.
 
 ## Input layout
 
